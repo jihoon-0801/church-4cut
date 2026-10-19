@@ -251,6 +251,7 @@ input[type=range]{width:100%;accent-color:var(--ink)}
   #printArea{display:block!important}
 }
 @media (prefers-reduced-motion:reduce){#flash.go{animation:none}}
+.home-pv{display:flex;gap:10px;flex-wrap:wrap}.home-pv .pv-box{flex:1;min-width:160px;background:#111;color:#ddd;border-radius:14px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:120px}.home-pv span{font-size:12px;color:#999;align-self:flex-start}.home-pv img{max-height:110px;max-width:100%;object-fit:contain}.home-pv b{font-size:18px;margin:auto 0 0}.home-pv i{font-size:12px;color:#888;font-style:normal;margin-bottom:auto}
 </style>
 
 <!-- 홈 -->
@@ -1275,10 +1276,14 @@ SC.admin = {
         el('div', {class:'row'}, ''),
       ));
       const r1 = p.lastChild.lastChild;
-      r1.appendChild(filePick('가운데 그림 올리기', 'image/*', async f => { S.homeImg = scaledDataURL(await fileToImage(f), 1000); save(); toast('그림을 바꿨어요'); }));
-      r1.appendChild(btn('기본 그림으로', () => { S.homeImg = null; save(); toast('기본 그림으로 돌렸어요'); }));
-      r1.appendChild(filePick('교회 로고 올리기', 'image/*', async f => { S.logoImg = scaledDataURL(await fileToImage(f), 900); save(); toast('로고를 넣었어요'); }));
-      r1.appendChild(btn('로고 빼기', () => { S.logoImg = null; save(); toast('로고를 뺐어요'); }));
+      const pv = el('div', {class:'home-pv'});
+      pv.appendChild(el('div', {class:'pv-box'}, `<span>가운데 그림</span><img src="${S.homeImg || DEFAULT_HOME_IMG}" alt="">`));
+      pv.appendChild(el('div', {class:'pv-box'}, `<span>교회 로고</span>${S.logoImg ? `<img src="${S.logoImg}" alt="">` : `<b>${esc(S.churchName || '없음')}</b><i>로고가 없어서 교회 이름이 보여요</i>`}`));
+      r1.before(pv, el('p', {class:'small'}, '처음 화면 한가운데 그림과 아래쪽 로고를 바꿔요. 지금 들어간 모습이 위에 보여요.'));
+      r1.appendChild(filePick('가운데 그림 바꾸기', 'image/*', async f => { S.homeImg = scaledDataURL(await fileToImage(f), 1000); save(); toast('그림을 바꿨어요'); this.render(); }));
+      r1.appendChild(btn('가운데 그림 처음대로', () => { S.homeImg = null; save(); toast('기본 그림으로 돌렸어요'); this.render(); }));
+      r1.appendChild(filePick('교회 로고 넣기', 'image/*', async f => { S.logoImg = scaledDataURL(await fileToImage(f), 900); save(); toast('로고를 넣었어요'); this.render(); }));
+      r1.appendChild(btn('로고 지우기', () => { S.logoImg = null; save(); toast('로고를 뺐어요'); this.render(); }));
       p.appendChild(grp('부스 운영',
         tog('손님이 시작하면 전체 화면으로', () => S.fullscreen, v => S.fullscreen = v),
         num('완성 화면에서 처음으로 돌아가는 시간 (초)', () => S.idleSec, v => S.idleSec = v, 15, 600),
@@ -1286,7 +1291,8 @@ SC.admin = {
       ));
       const r2 = p.lastChild.lastChild;
       r2.appendChild(btn('지금 전체 화면 켜기', async () => { try { await document.documentElement.requestFullscreen(); } catch(e) { toast('이 기기에서는 전체 화면을 켤 수 없어요'); } }));
-      r2.appendChild(btn(`네컷 개수 0으로 (지금 ${S.count || 0}개)`, () => { S.count = 0; save(); this.render(); }));
+      r2.after(el('p', {class:'small'}, `처음 화면 아래 "지금까지 만든 네컷 ${S.count || 0}장" 숫자예요. 행사를 새로 시작할 때 0부터 다시 세요.`));
+      r2.appendChild(btn(`만든 네컷 수 0부터 다시 세기 (지금 ${S.count || 0}장)`, () => { S.count = 0; save(); this.render(); }));
       p.appendChild(grp('관리자 비밀번호', txt('숫자 4자리', () => S.pin, v => { if (/^\d{4}$/.test(v)) { S.pin = v; } }, 'text'), '<span class="small">숫자 4자리를 다 넣으면 바로 바뀌어요. 처음 비밀번호는 0000이에요.</span>'));
     }
     if (atab === 'frames') {
