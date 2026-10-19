@@ -16,7 +16,7 @@ p{margin:0;color:var(--sub);text-align:center;font-size:14px}
 <main>
   <h1>오늘의 네컷이에요!</h1>
   <div class="card" id="photo" hidden><img id="img" alt="네컷 사진"><a class="btn" id="imgDl">사진 저장하기</a><p>버튼이 안 되면 사진을 길게 눌러 저장해 주세요.</p></div>
-  <div class="card" id="movie" hidden><video id="vid" playsinline autoplay muted loop controls></video><a class="btn" id="vidDl">영상 저장하기</a></div>
+  <div class="card" id="movie" hidden><video id="vid" playsinline autoplay muted loop controls></video><p id="vidWait" hidden>영상을 만드는 중이에요. 잠시만 기다려 주세요…</p><a class="btn" id="vidDl">영상 저장하기</a></div>
   <p id="none" hidden>사진 주소가 없어요. QR을 다시 찍어 주세요.</p>
 </main>
 <script>
@@ -25,7 +25,14 @@ const safe = u => /^https:\/\/res\.cloudinary\.com\//.test(u || '') ? u : '';
 const attach = u => u.replace('/upload/', '/upload/fl_attachment/');
 const i = safe(q.get('i')), v = safe(q.get('v'));
 if (i) { document.getElementById('photo').hidden = false; document.getElementById('img').src = i; document.getElementById('imgDl').href = attach(i); }
-if (v) { const mp4 = v.replace(/\.[a-z0-9]+$/i, '.mp4'); document.getElementById('movie').hidden = false; document.getElementById('vid').src = mp4; document.getElementById('vidDl').href = attach(mp4); }
+if (v) {
+  const mp4 = v.replace(/\.[a-z0-9]+$/i, '.mp4'), vid = document.getElementById('vid'), wait = document.getElementById('vidWait');
+  document.getElementById('movie').hidden = false; document.getElementById('vidDl').href = attach(mp4);
+  // 영상은 사진보다 몇 초 늦게 올라가요. 아직 없으면 잠깐씩 다시 불러요.
+  let tries = 0; vid.onerror = () => { if (++tries > 40) { wait.textContent = '영상을 불러오지 못했어요. 잠시 뒤 새로고침해 주세요.'; return; } wait.hidden = false; setTimeout(() => { vid.src = mp4 + '?t=' + Date.now(); }, 3000); };
+  vid.onloadeddata = () => { wait.hidden = true; };
+  vid.src = mp4;
+}
 if (!i && !v) document.getElementById('none').hidden = false;
 </script>
 </body></html>

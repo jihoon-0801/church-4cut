@@ -834,18 +834,20 @@ const shutterSound = () => { beep(1500, .05, .3); setTimeout(() => beep(900, .09
 /* ================= 영상 녹화 ================= */
 const REC_MIME = (() => { if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return null;
   return ['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(t => { try { return MediaRecorder.isTypeSupported(t); } catch(e) { return false; } }) || null; })();
-const Clip = { cv:document.createElement('canvas'), rec:null, chunks:[], active:false,
+// 컷마다 카운트다운 동안의 모습을 작은 그림으로 모아 둬요 (최근 3초, 초당 12장)
+const CLIP_FPS = 12, CLIP_MAX = 36;
+const Clip = { frames:[], spare:[], active:false, last:0, w:320, h:400,
   start(aspect){
-    if (!REC_MIME || !S.video || this.rec) return;
-    this.cv.width = 480; this.cv.height = Math.round(480/aspect/2)*2;
-    try { const stream = this.cv.captureStream(30); this.rec = new MediaRecorder(stream, {mimeType:REC_MIME, videoBitsPerSecond:2500000}); }
-    catch(e) { this.rec = null; return; }
-    this.chunks = []; this.rec.ondataavailable = e => { if (e.data && e.data.size) this.chunks.push(e.data); };
-    this.rec.start(); this.active = true; this.t0 = performance.now();
+    if (!REC_MIME || !S.video || this.active) return;
+    this.w = 320; this.h = Math.round(320/aspect/2)*2; this.frames = []; this.spare = []; this.last = 0; this.active = true;
   },
-  draw(src){ if (this.active) this.cv.getContext('2d').drawImage(src, 0, 0, this.cv.width, this.cv.height); },
-  stop(){ return new Promise(res => { const r = this.rec; this.rec = null; this.active = false; if (!r) return res(null);
-    const chunks = this.chunks; r.onstop = () => { r.stream.getTracks().forEach(t => t.stop()); res(chunks.length ? new Blob(chunks, {type:REC_MIME}) : null); }; try { r.stop(); } catch(e) { res(null); } }); },
+  draw(src){
+    if (!this.active) return; const now = performance.now(); if (now - this.last < 1000/CLIP_FPS - 4) return; this.last = now;
+    let c = this.frames.length >= CLIP_MAX ? this.frames.shift() : this.spare.pop();
+    if (!c || c.width !== this.w || c.height !== this.h) { c = document.createElement('canvas'); c.width = this.w; c.height = this.h; }
+    c.getContext('2d').drawImage(src, 0, 0, this.w, this.h); this.frames.push(c);
+  },
+  stop(){ const f = this.frames; this.frames = []; this.spare = []; this.active = false; return Promise.resolve(f.length >= 2 ? f : null); },
 };
 
 /* ================= 화면 전환 ================= */
@@ -1144,7 +1146,6 @@ const Final = { blob:null, canvas:null, idle:null, left:0, token:0, copies:1 };
 async function makeVideo(tk){
   const fr = sess.frame; const clips = sess.chosen.map(i => sess.shots[i] && sess.shots[i].clip);
   if (!REC_MIME || !clips.some(Boolean)) return null;
-  const vids = await Promise.all(clips.map(b => b ? new Promise(res => { const v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = URL.createObjectURL(b); v.oncanplay = () => res(v); v.onerror = () => res(null); setTimeout(() => res(v.readyState >= 2 ? v : null), 4000); }) : null));
   const stills = photosFor();
   const sc = Math.min(1, 1280/Math.max(fr.Wmm, fr.Hmm)/MM);
   const W = Math.round(fr.Wmm*MM*sc/2)*2, H = Math.round(fr.Hmm*MM*sc/2)*2;
@@ -1152,19 +1153,19 @@ async function makeVideo(tk){
   const stream = cv.captureStream(30); let rec;
   try { rec = new MediaRecorder(stream, {mimeType:REC_MIME, videoBitsPerSecond:5000000}); } catch(e) { return null; }
   const chunks = []; rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
-  vids.forEach(v => { if (v) { v.currentTime = 0; v.onended = () => { v.currentTime = 0; v.play().catch(() => {}); }; v.play().catch(() => {}); } });
-  const drawOnce = () => { x.setTransform(sc, 0, 0, sc, 0, 0); renderFrame(x, fr, {photos:vids.map((v, i) => (v && v.readyState >= 2) ? v : stills[i]), stickers:sess.stickers}); };
-  drawOnce(); rec.start();
+  // 앞으로 갔다가 뒤로 돌아오기를 반복해서 끊김 없이 이어져요
+  const pick = (f, k) => { const L = f.length, per = 2*(L - 1), i = k % per; return f[i < L ? i : per - i]; };
+  const drawAt = k => { x.setTransform(sc, 0, 0, sc, 0, 0); renderFrame(x, fr, {photos:clips.map((f, i) => f ? pick(f, k) : stills[i]), stickers:sess.stickers}); };
+  drawAt(0); rec.start();
   const t0 = performance.now(), DUR = 6000;
-  await new Promise(res => { const step = () => { if (tk !== Final.token) return res(); drawOnce(); if (performance.now() - t0 < DUR) requestAnimationFrame(step); else res(); }; step(); });
+  await new Promise(res => { const step = () => { if (tk !== Final.token) return res(); const t = performance.now() - t0; drawAt(Math.floor(t*CLIP_FPS/1000)); if (t < DUR) requestAnimationFrame(step); else res(); }; step(); });
   const done = new Promise(res => rec.onstop = res); rec.stop(); await done; stream.getTracks().forEach(t => t.stop());
-  vids.forEach(v => { if (v) { v.pause(); URL.revokeObjectURL(v.src); } });
   return tk === Final.token && chunks.length ? new Blob(chunks, {type:REC_MIME}) : null;
 }
-async function cloudUpload(blob, kind){
-  const fd = new FormData(); fd.append('file', blob); fd.append('upload_preset', S.qr.preset);
+async function cloudUpload(blob, kind, publicId){
+  const fd = new FormData(); fd.append('file', blob); fd.append('upload_preset', S.qr.preset); if (publicId) fd.append('public_id', publicId);
   const r = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(S.qr.cloud)}/${kind}/upload`, {method:'POST', body:fd});
-  const j = await r.json(); if (!r.ok || !j.secure_url) throw new Error((j.error && j.error.message) || '업로드 실패'); return j.secure_url;
+  const j = await r.json(); if (!r.ok || !j.secure_url) throw new Error((j.error && j.error.message) || '업로드 실패'); return j;
 }
 const dlBase = () => (S.qr.base || location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, ''));
 function qrImg(text, px = 6){ if (!window.qrcode) return null; const q = qrcode(0, 'M'); q.addData(text); q.make(); return el('img', {src:q.createDataURL(px, 2), alt:'사진 받기 QR 코드'}); }
@@ -1180,18 +1181,22 @@ SC.final = {
     const qb = $('#qrBox'), qa = $('#qrArea'), msg = $('#qrMsg'); qa.innerHTML = '';
     if (!(S.qr.cloud && S.qr.preset)) { qb.hidden = true; return; }
     qb.hidden = false;
+    const hasVid = !!(S.video && REC_MIME && sess.chosen.some(i => sess.shots[i] && sess.shots[i].clip));
+    const vidP = hasVid ? makeVideo(tk).catch(() => null) : Promise.resolve(null);   // 사진 올리는 동안 영상도 같이 만들어요
+    const showQR = (iu, vu) => { qa.innerHTML = ''; const im = qrImg(dlBase() + 'dl.html#i=' + encodeURIComponent(iu) + (vu ? '&v=' + encodeURIComponent(vu) : '')); if (im) qa.appendChild(im); };
     try {
       msg.textContent = '사진을 올리는 중이에요…';
-      const iu = await cloudUpload(Final.blob, 'image'); if (tk !== Final.token) return;
-      let vu = '';
-      if (S.video && REC_MIME) {
-        msg.textContent = '움직이는 네컷 영상을 만드는 중이에요…';
-        const vb = await makeVideo(tk); if (tk !== Final.token) return;
-        if (vb) { msg.textContent = '영상을 올리는 중이에요…'; vu = await cloudUpload(vb, 'video'); if (tk !== Final.token) return; }
-      }
-      const url = dlBase() + 'dl.html#i=' + encodeURIComponent(iu) + (vu ? '&v=' + encodeURIComponent(vu) : '');
-      const im = qrImg(url); if (im) qa.appendChild(im);
-      msg.textContent = vu ? '핸드폰 카메라로 찍으면 사진과 영상을 받을 수 있어요' : '핸드폰 카메라로 찍으면 사진을 받을 수 있어요';
+      const ij = await cloudUpload(Final.blob, 'image'); if (tk !== Final.token) return;
+      const vid = ij.public_id + '_v', vGuess = `https://res.cloudinary.com/${encodeURIComponent(S.qr.cloud)}/video/upload/${vid}.mp4`;
+      showQR(ij.secure_url, hasVid ? vGuess : '');
+      msg.textContent = hasVid ? '핸드폰 카메라로 찍으면 사진과 영상을 받을 수 있어요 (영상은 몇 초 뒤에 떠요)' : '핸드폰 카메라로 찍으면 사진을 받을 수 있어요';
+      if (!hasVid) return;
+      const vb = await vidP; if (tk !== Final.token) return;
+      let vj = null; if (vb) { try { vj = await cloudUpload(vb, 'video', vid.split('/').pop()); } catch(e) { console.warn(e); } }
+      if (tk !== Final.token) return;
+      if (!vj) { showQR(ij.secure_url, ''); msg.textContent = '핸드폰 카메라로 찍으면 사진을 받을 수 있어요'; return; }
+      if (vj.public_id !== vid) showQR(ij.secure_url, vj.secure_url);   // 예상한 주소와 다르면 QR을 다시 만들어요
+      msg.textContent = '핸드폰 카메라로 찍으면 사진과 영상을 받을 수 있어요';
     } catch(e) { console.warn(e); if (tk === Final.token) msg.textContent = '인터넷 연결을 확인해 주세요. QR을 만들지 못했어요.'; }
   },
   leave(){ Final.token++; },
