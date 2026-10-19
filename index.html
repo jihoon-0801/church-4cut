@@ -1460,7 +1460,7 @@ const Editor = { fr:null, sel:null, drag:null, view:null,
     const color = (label, get, set) => { const l = el('label', {class:'tog'}, `<span>${esc(label)}</span>`); const i = el('input', {type:'color', style:'width:56px;height:36px;border:0;background:none'}); i.value = get(); i.addEventListener('input', () => { set(i.value); re(); }); l.appendChild(i); return l; };
     P.appendChild(grp('기본', t('이름', () => fr.name, v => fr.name = v),
       el('div', {class:'f'}, '촬영 방식'), mini([['front','정면'],['top','위에서 (탑뷰)']], () => fr.mode, v => fr.mode = v),
-      el('div', {class:'f'}, '크기'), mini([['50x148','세로 4컷 50×148mm'],['100x148','한 장 100×148mm']], () => `${fr.Wmm}x${fr.Hmm}`, v => { const [w, h] = v.split('x').map(Number); const kx = w/fr.Wmm, ky = h/fr.Hmm; fr.slots.forEach(s => { s.x *= kx; s.w *= kx; s.y *= ky; s.h *= ky; }); fr.texts.forEach(q => { q.x *= kx; q.y *= ky; }); fr.Wmm = w; fr.Hmm = h; }),
+      el('div', {class:'f'}, '크기'), mini([['50x148','세로 4컷 50×148mm (그림 600×1776px)'],['100x148','한 장 100×148mm (그림 1200×1776px)']], () => `${fr.Wmm}x${fr.Hmm}`, v => { const [w, h] = v.split('x').map(Number); const kx = w/fr.Wmm, ky = h/fr.Hmm; fr.slots.forEach(s => { s.x *= kx; s.w *= kx; s.y *= ky; s.h *= ky; }); fr.texts.forEach(q => { q.x *= kx; q.y *= ky; }); fr.Wmm = w; fr.Hmm = h; }),
       el('div', {class:'two'})));
     const two = P.lastChild.lastChild;
     two.appendChild(num('가로 mm', () => fr.Wmm, v => { fr.Wmm = v; this.draw(); }, 20, 300, .5));
