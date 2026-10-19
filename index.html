@@ -1273,7 +1273,7 @@ SC.admin = {
     if (!this.camOn) return; const cv = $('#adminCam'); if (!cv) return; sizeCanvas(cv, 1.5); const x = cv.getContext('2d');
     x.fillStyle = '#111'; x.fillRect(0, 0, cv.width, cv.height);
     const fr = FRAMES.find(f => f.mode === this.camMode && f.enabled) || FRAMES[0]; const a = slotAspect(fr);
-    drawLive(x, fitRect(cv.width, cv.height, a, .04), fr.slots[0].shape, a, PRESETS[S.defaultFilter] || PRESETS.none, this.camMode);
+    drawLive(x, fitRect(cv.width, cv.height, a, .04), 'round', a, PRESETS[S.defaultFilter] || PRESETS.none, this.camMode);
   },
   camMode:'front', camOn:false,
   async render(){
@@ -1341,6 +1341,7 @@ SC.admin = {
       const camSel = el('select', {class:'f', id:'camSel', 'aria-label':'카메라 선택'});
       camSel.addEventListener('change', async () => { S.cam.deviceId = camSel.value; save(); await Cam.restart(); });
       p.appendChild(grp('카메라', seg, camSel, el('div', {class:'cam-prev'}, '<canvas id="adminCam"></canvas>'),
+        '<span class="small">카메라 각도와 크기를 맞추는 화면이에요. 실제 촬영 때는 손님이 고른 프레임 칸 모양(네모, 동그라미, 하트)으로 보여요.</span>',
         tog('거울처럼 좌우 반전', () => c.mirror, v => c.mirror = v),
         rng('확대', () => c.zoom, v => c.zoom = v, 1, 2.5, .05, v => (+v).toFixed(1) + '×'),
         rng('위아래', () => c.shiftY, v => c.shiftY = v, -1, 1, .05, v => Math.round(v*100)),
