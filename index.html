@@ -304,6 +304,16 @@ input[type=range]{width:100%;accent-color:var(--ink)}
 .ed-stage{position:relative;flex:1;min-height:300px;border-radius:12px;background:#f3f2f6 radial-gradient(#d6d3de 1px,transparent 1.2px) 0 0/18px 18px}
 .ed-stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
 .ed-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;flex-wrap:wrap}
+.ed-layer{display:grid;grid-template-columns:28px minmax(0,1fr);gap:4px 10px;border:1px solid var(--line);border-radius:14px;padding:12px}
+.ed-layer>i{font-style:normal;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px}
+.ed-layer>div:first-of-type{display:flex;flex-direction:column}
+.ed-layer small{color:var(--sub);font-size:12.5px;line-height:1.45}
+.ed-layer>.ed-col{grid-column:1/-1}
+.ed-thumb.sm{max-height:110px}
+.ed-decos{display:flex;flex-wrap:wrap;gap:6px}
+.ed-decos button{width:56px;height:56px;border-radius:10px;border:1px solid var(--line);background:repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/12px 12px;padding:3px}
+.ed-decos button[aria-pressed="true"]{outline:3px solid var(--pop)}
+.ed-decos img{width:100%;height:100%;object-fit:contain}
 .ed-zoom{display:flex;align-items:center;border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-left:auto}
 .ed-zoom button{border:0;background:var(--paper);padding:7px 14px;font-size:16px;min-width:44px}
 .ed-zoom #edZoom{font-size:14px;font-family:var(--f-en);min-width:64px}
@@ -598,7 +608,7 @@ const resolveText = t => String(t).replace(/\{date\}/g, todayStr()).replace(/\{c
 const IMG = new Map();
 function getImg(src){ if (!src) return null; let e = IMG.get(src); if (!e) { const im = new Image(); e = {im, p:new Promise(r => { im.onload = () => r(im); im.onerror = () => r(null); })}; im.src = src; IMG.set(src, e); } return e; }
 function imgReady(src){ const e = getImg(src); return e && e.im.complete && e.im.naturalWidth ? e.im : null; }
-const ensureImgs = fr => Promise.all([fr.bgImg, fr.overlay].filter(Boolean).map(s => getImg(s).p));
+const ensureImgs = fr => Promise.all([fr.bgImg, fr.overlay, ...(fr.slots || []).map(s => s.mask), ...(fr.decos || []).map(d => d.src)].filter(Boolean).map(s => getImg(s).p));
 const loadImage = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 const dims = s => [s.videoWidth || s.naturalWidth || s.width || 0, s.videoHeight || s.naturalHeight || s.height || 0];
 function fileToImage(file){ return loadImage(URL.createObjectURL(file)); }
@@ -708,6 +718,19 @@ function filtered(raw, key){
 }
 
 /* ================= 프레임 그리기 ================= */
+// 칸 안에만 그리기: 칸에 모양 그림(mask)이 있으면 그 모양대로, 없으면 shape 모양대로 잘라요
+const SLOTTMP = document.createElement('canvas');
+function inSlot(ctx, r, fn){
+  const m = r.mask && imgReady(r.mask);
+  if (!m) { ctx.save(); slotPath(ctx, r, r.shape); ctx.clip(); fn(ctx); ctx.restore(); return; }
+  const t = ctx.getTransform(), sc = Math.hypot(t.a, t.b) || 1;
+  const cw = Math.max(2, Math.round(r.w*sc)), ch = Math.max(2, Math.round(r.h*sc));
+  const c = SLOTTMP; if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; } const x = c.getContext('2d');
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-over'; x.clearRect(0, 0, cw, ch);
+  x.setTransform(sc, 0, 0, sc, -r.x*sc, -r.y*sc); fn(x);
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'destination-in'; x.drawImage(m, 0, 0, cw, ch); x.globalCompositeOperation = 'source-over';
+  ctx.drawImage(c, r.x, r.y, r.w, r.h);
+}
 function slotPath(ctx, r, shape){
   ctx.beginPath();
   const {x, y, w, h} = r;
@@ -755,12 +778,11 @@ function renderFrame(ctx, fr, o = {}){
   ctx.fillStyle = fr.bg || '#fff'; ctx.fillRect(0, 0, W, H);
   const bgI = imgReady(fr.bgImg); if (bgI) ctx.drawImage(bgI, 0, 0, W, H);
   fr.slots.forEach((r, i) => {
-    ctx.save(); slotPath(ctx, r, r.shape); ctx.clip();
     const p = o.photos && o.photos[i];
-    if (p) drawCover(ctx, p, r); else placeholder(ctx, r, o.numbers ? i : null, fr.bg);
-    ctx.restore();
+    inSlot(ctx, r, c => { if (p) drawCover(c, p, r); else placeholder(c, r, o.numbers ? i : null, fr.bg); });
   });
   const ov = o.overlay || imgReady(fr.overlay); if (ov) ctx.drawImage(ov, 0, 0, W, H);
+  for (const d of fr.decos || []) { const im = imgReady(d.src); if (im) ctx.drawImage(im, d.x, d.y, d.w, d.h); }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const t of fr.texts) { const s = resolveText(t.text); if (!s) continue; let size = t.size; ctx.font = fontStr(t, size); const mw = W*0.94, tw = ctx.measureText(s).width; if (tw > mw) { size *= mw/tw; ctx.font = fontStr(t, size); } ctx.fillStyle = t.color; ctx.fillText(s, t.x, t.y); }
   (o.stickers || []).forEach(s => drawSticker(ctx, s));
@@ -916,12 +938,12 @@ const Cam = { video:null, stream:null, ok:false, demo:null, err:null, starting:n
 };
 const camCfg = mode => S.cam[mode === 'top' ? 'top' : 'front'];
 // 지금 카메라를 보정해서 rect(캔버스 px)에 slot 모양으로 그림. 반환: glc에 그려졌는지
-function drawLive(ctx, rect, shape, aspect, f, mode){
+function drawLive(ctx, rect, shape, aspect, f, mode, mask){
   const src = Cam.source(); if (!src) return false;
   const [el_, sw, sh] = src; const c = camCfg(mode);
   const crop = cropFor(sw, sh, aspect, c.rot, c.zoom, c.shiftY);
   const out = render(el_, sw, sh, rect.w, rect.h, crop, c.mirror, c.rot, f, true);
-  ctx.save(); slotPath(ctx, rect, shape); ctx.clip(); ctx.drawImage(out, rect.x, rect.y, rect.w, rect.h); ctx.restore();
+  inSlot(ctx, {...rect, shape, mask}, c => c.drawImage(out, rect.x, rect.y, rect.w, rect.h));
   return true;
 }
 function captureRaw(aspect, mode){
@@ -1089,7 +1111,7 @@ SC.filter = {
     const cv = $('#filterCanvas'); sizeCanvas(cv, 1.5); const x = cv.getContext('2d');
     x.clearRect(0, 0, cv.width, cv.height);
     const fr = sess.frame, a = slotAspect(fr), r = fitRect(cv.width, cv.height, a, 0.02);
-    drawLive(x, r, fr.slots[0].shape, a, PRESETS[sess.filter], sess.mode);
+    drawLive(x, r, fr.slots[0].shape, a, PRESETS[sess.filter], sess.mode, fr.slots[0].mask);
     if ((this.n++ % 2) === 0) for (const [k, t] of this.thumbs) { const tx = t.getContext('2d'); tx.fillStyle = '#ddd'; tx.fillRect(0, 0, t.width, t.height); drawLive(tx, {x:0, y:0, w:t.width, h:t.height}, 'rect', 1, PRESETS[k], sess.mode); }
   },
 };
@@ -1105,7 +1127,7 @@ SC.shoot = {
     const cv = $('#shootCanvas'); sizeCanvas(cv, 1.5); const x = cv.getContext('2d');
     x.fillStyle = '#0e0d10'; x.fillRect(0, 0, cv.width, cv.height);
     const fr = sess.frame, a = slotAspect(fr), r = fitRect(cv.width, cv.height, a, 0.05);
-    if (drawLive(x, r, fr.slots[0].shape, a, PRESETS[sess.filter], sess.mode)) Clip.draw(gl ? glc : c2d);
+    if (drawLive(x, r, fr.slots[0].shape, a, PRESETS[sess.filter], sess.mode, fr.slots[0].mask)) Clip.draw(gl ? glc : c2d);
   },
   wait(ms){ return new Promise(res => { const t = setTimeout(res, ms); this.skip = () => { clearTimeout(t); res('skip'); }; }); },
   async run(tk){
@@ -1584,14 +1606,23 @@ function samplePhoto(i){
   });
   return SAMPLE[i];
 }
-const edSnap = fr => ({...fr, slots:fr.slots.map(s => ({...s})), texts:fr.texts.map(t => ({...t}))});
+const edSnap = fr => ({...fr, slots:fr.slots.map(s => ({...s})), texts:fr.texts.map(t => ({...t})), decos:(fr.decos || []).map(d => ({...d}))});
+// 위에 올린 그림에서 누른 곳이 투명한지 보기 (투명한 곳을 누르면 아래 칸이 골라지게)
+const DHIT = new Map();
+function decoSolid(d, p){
+  const im = imgReady(d.src); if (!im) return false;
+  let c = DHIT.get(d.src); if (!c) { const [iw, ih] = dims(im), k = Math.min(1, 256/Math.max(iw, ih)); c = document.createElement('canvas'); c.width = Math.max(1, Math.round(iw*k)); c.height = Math.max(1, Math.round(ih*k)); c.getContext('2d', {willReadFrequently:true}).drawImage(im, 0, 0, c.width, c.height); DHIT.set(d.src, c); }
+  const ix = Math.floor((p.x - d.x)/d.w*c.width), iy = Math.floor((p.y - d.y)/d.h*c.height);
+  if (ix < 0 || iy < 0 || ix >= c.width || iy >= c.height) return false;
+  return c.getContext('2d', {willReadFrequently:true}).getImageData(ix, iy, 1, 1).data[3] > 40;
+}
 const edSame = (a, b) => { const k = o => JSON.stringify({...o, overlay:null, bgImg:null}); return a.overlay === b.overlay && a.bgImg === b.bgImg && k(a) === k(b); };
 
 const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'num', punch:false, hist:[], hi:0, isNew:false, brush:null, bsize:24, zoom:1, pan:{x:0, y:0}, cursor:null, ovCv:null, ovSrc:null,
   async open(id){ const f = FRAMES.find(x => x.id === id); this.begin(clone(f), false, 'slots'); },
   create(){ const f = frameStrip('새 프레임', 'front', '#ffffff', 'round', '#1d1a22', '{church}'); this.begin(f, true, 'start'); },
   async begin(fr, isNew, tab){
-    this.fr = fr; this.isNew = isNew; this.tab = tab; this.sel = null; this.punch = false; this.brush = null; this.zoom = 1; this.pan = {x:0, y:0}; this.ovCv = null; this.confirmDel = false; this.confirmClose = false;
+    this.fr = fr; this.isNew = isNew; this.tab = tab; this.sel = null; this.punch = false; this.pickSlot = false; this.brush = null; this.zoom = 1; if (!fr.decos) fr.decos = []; this.pan = {x:0, y:0}; this.ovCv = null; this.confirmDel = false; this.confirmClose = false;
     this.hist = [edSnap(fr)]; this.hi = 0; go('editor'); await ensureImgs(fr); this.all();
   },
   W(){ return this.fr.Wmm*MM; }, H(){ return this.fr.Hmm*MM; },
@@ -1606,7 +1637,7 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
     $('#edUndo').disabled = this.hi <= 0; $('#edRedo').disabled = this.hi >= this.hist.length - 1;
     const fr = this.fr, per = sheetLayout(fr).n;
     $('#edSize').textContent = `${fr.Wmm}×${fr.Hmm}mm · 그림 ${Math.round(fr.Wmm*12)}×${Math.round(fr.Hmm*12)}px`;
-    $('#edHint').textContent = this.punch ? '그림에서 사진이 들어갈 칸을 하나씩 눌러 주세요' : this.brush ? (this.brush === 'erase' ? '지울 곳을 문질러요. 지운 곳에는 사진이 보여요' : '되살릴 곳을 문질러요') + (this.zoom > 1 ? ' · 두 손가락이나 마우스 휠로 화면을 옮겨요' : ' · 작은 부분은 + 로 확대해요') : '칸이나 글자를 누르면 오른쪽에서 고칠 수 있어요. 끌어서 옮겨요.';
+    $('#edHint').textContent = this.pickSlot ? '배경에서 사진이 들어갈 자리를 하나씩 눌러 주세요' : this.punch ? '그림에서 사진이 들어갈 칸을 하나씩 눌러 주세요' : this.brush ? (this.brush === 'erase' ? '지울 곳을 문질러요. 지운 곳에는 사진이 보여요' : '되살릴 곳을 문질러요') + (this.zoom > 1 ? ' · 두 손가락이나 마우스 휠로 화면을 옮겨요' : ' · 작은 부분은 + 로 확대해요') : '칸이나 글자를 누르면 오른쪽에서 고칠 수 있어요. 끌어서 옮겨요.';
     $('#edZoom').textContent = Math.round(this.zoom*100) + '%';
     $('#edView').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === this.vmode)));
     void per;
@@ -1633,13 +1664,17 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
       if (on) { x.fillStyle = '#ff3b6b'; x.beginPath(); x.arc(r.x + r.w, r.y + r.h, 13/v.s, 0, 7); x.fill(); x.fillStyle = '#fff'; x.beginPath(); x.arc(r.x + r.w, r.y + r.h, 5/v.s, 0, 7); x.fill(); } });
     x.setLineDash([]);
     if (this.sel && this.sel.t === 'text') { const b = this.textBox(this.fr.texts[this.sel.i]); if (b) { x.strokeStyle = '#ff3b6b'; x.strokeRect(b.x, b.y, b.w, b.h); } }
+    if (this.sel && this.sel.t === 'deco') { const d = (this.fr.decos || [])[this.sel.i]; if (d) { x.strokeStyle = '#ff3b6b'; x.setLineDash([6/v.s, 4/v.s]); x.strokeRect(d.x, d.y, d.w, d.h); x.setLineDash([]); x.fillStyle = '#ff3b6b'; x.beginPath(); x.arc(d.x + d.w, d.y + d.h, 13/v.s, 0, 7); x.fill(); x.fillStyle = '#fff'; x.beginPath(); x.arc(d.x + d.w, d.y + d.h, 5/v.s, 0, 7); x.fill(); } }
     x.setTransform(1, 0, 0, 1, 0, 0);
   },
   textBox(t){ if (!t) return null; const x = $('#edCanvas').getContext('2d'); x.save(); x.font = fontStr(t); const w = Math.min(x.measureText(resolveText(t.text) || ' ').width, this.W()*0.94); x.restore(); return {x:t.x - w/2 - 8, y:t.y - t.size*0.65, w:w + 16, h:t.size*1.3}; },
   hit(p){
     const v = this.view, hr = 28/v.s;
-    if (this.sel && this.sel.t === 'slot') { const r = this.fr.slots[this.sel.i]; if (r && Math.abs(p.x - (r.x + r.w)) < hr && Math.abs(p.y - (r.y + r.h)) < hr) return {t:'slot', i:this.sel.i, h:'size'}; }
+    if (this.sel && (this.sel.t === 'slot' || this.sel.t === 'deco')) { const r = this.sel.t === 'slot' ? this.fr.slots[this.sel.i] : (this.fr.decos || [])[this.sel.i]; if (r && Math.abs(p.x - (r.x + r.w)) < hr && Math.abs(p.y - (r.y + r.h)) < hr) return {t:this.sel.t, i:this.sel.i, h:'size'}; }
     for (let i = this.fr.texts.length - 1; i >= 0; i--) { const b = this.textBox(this.fr.texts[i]); if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) return {t:'text', i}; }
+    const ds = this.fr.decos || [];
+    if (this.sel && this.sel.t === 'deco') { const d = ds[this.sel.i]; if (d && p.x >= d.x && p.x <= d.x + d.w && p.y >= d.y && p.y <= d.y + d.h && decoSolid(d, p)) return {t:'deco', i:this.sel.i}; }
+    for (let i = ds.length - 1; i >= 0; i--) { const d = ds[i]; if (p.x >= d.x && p.x <= d.x + d.w && p.y >= d.y && p.y <= d.y + d.h && decoSolid(d, p)) return {t:'deco', i}; }
     for (let i = this.fr.slots.length - 1; i >= 0; i--) { const r = this.fr.slots[i]; if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) return {t:'slot', i}; }
     return null;
   },
@@ -1661,22 +1696,55 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
     else toast('사진 칸을 찾지 못했어요. 사진칸 탭에서 "눌러서 칸 뚫기"를 써 보세요', 5000);
     this.tab = 'slots'; this.rail(); this.change();
   },
+  async fitToImage(fim){ const fr = this.fr; const [iw, ih] = dims(fim), ra = iw/ih; if (Math.abs(ra/(fr.Wmm/fr.Hmm) - 1) <= 0.03) return;
+    let H = 148, W = Math.round(H*ra*10)/10; if (W > 100) { W = 100; H = Math.round(W/ra*10)/10; }
+    const sx = W/fr.Wmm, sy = H/fr.Hmm; fr.Wmm = W; fr.Hmm = H; fr.texts.forEach(t => { t.x *= sx; t.y *= sy; }); fr.slots.forEach(o => { o.x *= sx; o.w *= sx; o.y *= sy; o.h *= sy; }); (fr.decos || []).forEach(d => { d.x *= sx; d.y *= sy; d.w *= sx; d.h *= sy; });
+    toast(`그림 비율에 맞춰 프레임 크기를 ${W}×${H}mm로 바꿨어요`, 4500); },
+  async loadBg(f){
+    const fr = this.fr; const fim = await fileToImage(f); await this.fitToImage(fim);
+    const png = scaledDataURL(fim, 2400); fr.bgImg = scaledDataURL(fim, 2400, 'image/jpeg', .92);
+    if (fr.overlay) { fr.overlay = fr.overlayOrig = null; }
+    fr.texts = fr.texts.filter(t => !/^\{(church|date)\}$/.test(t.text)); this.brush = null; this.punch = false;
+    await ensureImgs(fr); await this.findBgSlots(png); },
+  async findBgSlots(src){
+    const fr = this.fr; toast('배경에서 칸을 찾는 중이에요…', 8000);
+    const ns = await maskSlots(src || fr.bgImg, this.W(), this.H());
+    if (ns.length) { fr.slots = ns; this.sel = null; await ensureImgs(fr); toast(`사진 칸 ${ns.length}개를 찾았어요`); }
+    else toast('하얀 칸을 찾지 못했어요. "눌러서 칸 찾기"로 칸 자리를 눌러 주세요', 5000);
+    this.change(); },
+  async addDecos(files){
+    const fr = this.fr; fr.decos = fr.decos || [];
+    for (const f of files) { const im = await fileToImage(f); const src = scaledDataURL(im, 2400); const [iw, ih] = dims(im);
+      const k = Math.min(this.W()/iw, this.H()/ih), w = iw*k, h = ih*k;   // 프레임에 딱 맞게 (비율 그대로)
+      fr.decos.push({src, x:(this.W() - w)/2, y:(this.H() - h)/2, w, h}); }
+    await ensureImgs(fr); this.sel = {t:'deco', i:fr.decos.length - 1}; toast('위에 올렸어요. 끌어서 옮기고 분홍 동그라미로 크기를 바꿔요', 4500); this.change(); },
   // ---------- 왼쪽 도구 ----------
   tool(){
     const T = $('#edTool'); T.innerHTML = ''; const fr = this.fr;
     if (this.tab === 'start') {
-      T.appendChild(el('div', {class:'ed-steps'}, '<b>프레임 만드는 순서</b><ol><li>아래 두 방법 중 하나를 골라요</li><li><b>사진칸</b>에서 칸 모양을 확인해요</li><li><b>글자</b>와 <b>배경</b>으로 꾸며요</li><li><b>저장하기</b>를 눌러요</li></ol>'));
+      T.appendChild(el('div', {class:'ed-steps'}, '<b>프레임 만드는 순서</b><ol><li>아래 세 방법 중 하나를 골라요</li><li><b>사진칸</b>에서 칸 모양을 확인해요</li><li><b>글자</b>와 <b>배경</b>으로 꾸며요</li><li><b>저장하기</b>를 눌러요</li></ol>'));
       const a = this.sec('방법 1 · 내 디자인 올리기', '미리캔버스, 캔바에서 만든 그림을 올리면 하얀 칸을 찾아서 사진 칸으로 바꿔요. 칸 안에 걸친 캐릭터는 사진 위에 얹혀요.');
       a.appendChild(el('div', {class:'ed-size'}, '<div><b>세로 4컷</b><span>600×1776px</span><small>한 장에 2개 인쇄</small></div><div><b>한 장</b><span>1200×1776px</span><small>한 장에 1개 인쇄</small></div>'));
       const up = filePick(fr.overlay ? '다른 그림으로 바꾸기' : '그림 올리기', 'image/*', f => this.loadDesign(f)); up.className = 'btn dark ed-wide'; a.appendChild(up);
       if (fr.overlay) { const im = el('img', {src:fr.overlay, alt:'올린 디자인', class:'ed-thumb'}); a.insertBefore(im, up); a.appendChild(btn('올린 그림 빼기', () => { fr.overlay = fr.overlayOrig = null; this.brush = null; this.change(); }, 'btn ed-wide')); }
       T.appendChild(a);
-      T.appendChild(this.sec('방법 2 · 여기서 직접 꾸미기', '칸 배치를 고른 다음 글자와 배경으로 꾸며요.',
+      const L = this.sec('방법 2 · 배경 · 칸 · 그림 나눠 올리기', '디자인을 층으로 나눠 올리면 가는 선이나 작은 글씨도 깔끔하게 나와요.');
+      const step = (n, title, sub, ...kids) => { const d = el('div', {class:'ed-layer'}, `<i>${n}</i><div><b>${title}</b><small>${sub}</small></div>`); const k = el('div', {class:'ed-col'}); kids.flat().forEach(c => c && k.appendChild(c)); d.appendChild(k); return d; };
+      const bgUp = filePick(fr.bgImg ? '배경 바꾸기' : '배경 올리기', 'image/*', f => this.loadBg(f)); bgUp.className = 'btn' + (fr.bgImg ? '' : ' dark');
+      L.appendChild(step(1, '배경', '사진 아래 깔리는 그림. 사진 들어갈 자리는 하얀 칸으로 비워 둬요', fr.bgImg ? el('img', {src:fr.bgImg, alt:'배경', class:'ed-thumb sm'}) : null, bgUp));
+      L.appendChild(step(2, '칸', fr.bgImg ? `배경의 하얀 칸 모양 그대로 사진 칸 ${fr.slots.length}개를 만들었어요` : '배경을 올리면 하얀 칸 모양을 찾아서 사진 칸으로 만들어요',
+        fr.bgImg ? btn('배경에서 칸 다시 찾기', () => this.findBgSlots()) : null,
+        fr.bgImg ? btn(this.pickSlot ? '누르기 끝내기' : '눌러서 칸 찾기', () => { this.pickSlot = !this.pickSlot; if (this.pickSlot) { fr.slots = []; this.sel = null; toast('칸을 비웠어요. 사진 넣을 자리를 순서대로 눌러 주세요', 4500); } this.change(); }, this.pickSlot ? 'btn dark' : 'btn') : null));
+      const dUp = filePick('그림 올리기 (투명 PNG)', 'image/png,image/webp,image/*', f => this.addDecos([f])); dUp.className = 'btn' + (fr.bgImg && !(fr.decos || []).length ? ' dark' : '');
+      const dl = el('div', {class:'ed-decos'}); (fr.decos || []).forEach((d, i) => dl.appendChild(el('button', {type:'button', 'aria-pressed':String(this.sel && this.sel.t === 'deco' && this.sel.i === i), onclick:() => { this.sel = {t:'deco', i}; this.change(); }}, `<img src="${d.src}" alt="그림 ${i+1}">`)));
+      L.appendChild(step(3, '그림', '사진 위에 올라가는 캐릭터, 글씨 (배경이 투명한 PNG). 프레임 크기에 맞춰 들어가고, 옮기거나 크기를 바꿀 수 있어요', (fr.decos || []).length ? dl : null, dUp));
+      T.appendChild(L);
+      T.appendChild(this.sec('방법 3 · 여기서 직접 꾸미기', '칸 배치를 고른 다음 글자와 배경으로 꾸며요.',
         this.cards(ED_LAYOUTS.map(([k, n, sub, mkf]) => { const t = mkf(); const W = t.Wmm*12, H = t.Hmm*12, sc = 64/H; const art = `<svg viewBox="0 0 ${W} ${H}" class="lay" style="height:64px;width:${W*sc}px"><rect width="${W}" height="${H}" fill="#fff" stroke="#ccc" stroke-width="${1/sc}"/>${t.slots.map(s => `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="${Math.min(s.w, s.h)*.06}" fill="#d9d2e4"/>`).join('')}</svg>`; return [k, n, sub, art]; }), () => this.layoutKey(), k => this.applyLayout(k), 'lays')));
     }
     if (this.tab === 'slots') {
       const shape = (this.sel && this.sel.t === 'slot' && fr.slots[this.sel.i] || fr.slots[0] || {}).shape;
-      T.appendChild(this.sec('사진 칸 모양', this.cards(ED_SHAPES.map(([k, n]) => [k, n, '', this.shapeArt(k)]), () => shape, k => { fr.slots.forEach(s => s.shape = k); this.change(); }, 'shapes'),
+      T.appendChild(this.sec('사진 칸 모양', this.cards(ED_SHAPES.map(([k, n]) => [k, n, '', this.shapeArt(k)]), () => fr.slots.some(s => s.mask) ? '' : shape, k => { fr.slots.forEach(s => { s.shape = k; s.mask = null; }); this.change(); }, 'shapes'), fr.slots.some(s => s.mask) ? '지금은 배경의 칸 모양 그대로 잘라요. 다른 모양을 고르면 모든 칸이 그 모양으로 바뀌어요.' : null,
         '사진은 칸 네모에 꽉 채워 들어가고, 고른 모양만큼만 보여요. 모든 칸에 함께 적용돼요.'));
       const list = el('div', {class:'ed-chips'});
       fr.slots.forEach((s, i) => list.appendChild(el('button', {type:'button', 'aria-pressed':String(this.sel && this.sel.t === 'slot' && this.sel.i === i), onclick:() => { this.sel = {t:'slot', i}; this.change(); }}, `칸 ${i+1}`)));
@@ -1712,9 +1780,9 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
     if (this.tab === 'bg') {
       T.appendChild(this.sec('바탕색', this.swatches(ED_SWATCH, () => fr.bg, (c) => { fr.bg = c; this.change(); })));
       const r = el('div', {class:'ed-col'});
-      const up = filePick(fr.bgImg ? '배경 그림 바꾸기' : '배경 그림 올리기', 'image/*', async f => { fr.bgImg = scaledDataURL(await fileToImage(f), 2400, 'image/jpeg', .9); await ensureImgs(fr); this.change(); }); up.className = 'btn'; r.appendChild(up);
-      if (fr.bgImg) r.appendChild(btn('배경 그림 빼기', () => { fr.bgImg = null; this.change(); }));
-      T.appendChild(this.sec('배경 그림', r, '사진 아래에 깔리는 그림이에요. 사진 칸이 위를 덮어요. 캐릭터가 사진 위로 올라와야 하면 시작 탭의 "내 디자인 올리기"를 써요.'));
+      const up = filePick(fr.bgImg ? '배경 그림 바꾸기' : '배경 그림 올리기', 'image/*', f => this.loadBg(f)); up.className = 'btn'; r.appendChild(up);
+      if (fr.bgImg) { r.appendChild(btn('이 배경에서 칸 찾기', () => this.findBgSlots())); r.appendChild(btn('배경 그림 빼기', () => { fr.bgImg = null; this.change(); })); }
+      T.appendChild(this.sec('배경 그림', r, '사진 아래에 깔리는 그림이에요. 올리면 하얀 칸 모양을 찾아 사진 칸으로 만들어요. 사진 위에 올라갈 캐릭터는 시작 탭 방법 2의 "그림"으로 따로 올려요.'));
     }
     if (this.tab === 'set') {
       T.appendChild(this.sec('촬영 방식', this.cards([['front','정면','손님이 카메라를 봐요'],['top','위에서 (탑뷰)','위에서 내려다봐요']], () => fr.mode, k => { fr.mode = k; this.change(); }), '손님 화면에서 이 프레임이 어느 탭에 나올지 정해요.'));
@@ -1747,7 +1815,8 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
     if (sel && sel.t === 'slot' && fr.slots[sel.i]) {
       const s = fr.slots[sel.i];
       box.appendChild(el('h3', {}, `사진 칸 ${sel.i + 1}`));
-      box.appendChild(this.cards(ED_SHAPES.map(([k, n]) => [k, n, '', this.shapeArt(k)]), () => s.shape, k => { s.shape = k; this.change(); }, 'shapes sm'));
+      if (s.mask) box.appendChild(el('p', {class:'small'}, '배경의 칸 모양 그대로 잘라요. 아래에서 다른 모양을 고르면 그 모양으로 바뀌어요.'));
+      box.appendChild(this.cards(ED_SHAPES.map(([k, n]) => [k, n, '', this.shapeArt(k)]), () => s.mask ? '' : s.shape, k => { s.shape = k; s.mask = null; this.change(); }, 'shapes sm'));
       const f4 = el('div', {class:'four'});
       [['x','왼쪽'],['y','위'],['w','너비'],['h','높이']].forEach(([k, n]) => { const l = el('label', {}, n + ' mm'); const i = el('input', {type:'number', step:'.5'}); i.value = (s[k]/MM).toFixed(1); i.addEventListener('change', () => { const v = parseFloat(i.value); if (!isNaN(v)) { s[k] = Math.max(k === 'w' || k === 'h' ? 5*MM : 0, v*MM); this.change(false); } }); l.appendChild(i); f4.appendChild(l); });
       box.appendChild(f4);
@@ -1758,6 +1827,19 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
       r2.appendChild(btn('순서 뒤로', () => { const i = this.sel.i; if (i < fr.slots.length - 1) { [fr.slots[i+1], fr.slots[i]] = [fr.slots[i], fr.slots[i+1]]; this.sel.i++; this.change(); } }));
       r.appendChild(r2);
       r.appendChild(btn('이 칸 지우기', () => { if (fr.slots.length <= 1) { toast('칸은 하나 이상 있어야 해요'); return; } fr.slots.splice(this.sel.i, 1); this.sel = null; this.change(); }, 'btn danger'));
+      box.appendChild(r);
+    } else if (sel && sel.t === 'deco' && (fr.decos || [])[sel.i]) {
+      const d = fr.decos[sel.i];
+      box.appendChild(el('h3', {}, `위에 올린 그림 ${sel.i + 1}`));
+      box.appendChild(el('img', {src:d.src, alt:'', class:'ed-thumb sm'}));
+      box.appendChild(rng('크기', () => Math.round(d.w/this.W()*100), v => { const cx = d.x + d.w/2, cy = d.y + d.h/2, k = (+v/100*this.W())/d.w; d.w *= k; d.h *= k; d.x = cx - d.w/2; d.y = cy - d.h/2; this.change(false); }, 5, 200, 1, v => v + '%'));
+      const r = el('div', {class:'ed-col'});
+      r.appendChild(btn('프레임에 딱 맞추기', () => { const im = imgReady(d.src); const [iw, ih] = im ? dims(im) : [d.w, d.h]; const k = Math.min(this.W()/iw, this.H()/ih); d.w = iw*k; d.h = ih*k; d.x = (this.W() - d.w)/2; d.y = (this.H() - d.h)/2; this.change(); }));
+      const r2 = el('div', {class:'row'});
+      r2.appendChild(btn('앞으로', () => { const i = this.sel.i; if (i < fr.decos.length - 1) { [fr.decos[i+1], fr.decos[i]] = [fr.decos[i], fr.decos[i+1]]; this.sel.i++; this.change(); } }));
+      r2.appendChild(btn('뒤로', () => { const i = this.sel.i; if (i > 0) { [fr.decos[i-1], fr.decos[i]] = [fr.decos[i], fr.decos[i-1]]; this.sel.i--; this.change(); } }));
+      r.appendChild(r2);
+      r.appendChild(btn('이 그림 지우기', () => { fr.decos.splice(this.sel.i, 1); this.sel = null; this.change(); }, 'btn danger'));
       box.appendChild(r);
     } else if (sel && sel.t === 'text' && fr.texts[sel.i]) {
       const q = fr.texts[sel.i];
@@ -1790,7 +1872,7 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
     const sv = btn('저장하기', () => this.save(), 'btn dark ed-wide'); done.appendChild(sv);
     P.appendChild(done);
   },
-  save(){ clearTimeout(this.ct); this.commit(); const c = edSnap(this.fr); const i = FRAMES.findIndex(x => x.id === c.id); if (i >= 0) FRAMES[i] = c; else FRAMES.push(c); save(); this.isNew = false; this.hist = [edSnap(c)]; this.hi = 0; toast('저장했어요'); go('admin'); },
+  save(){ if (!this.fr.slots.length) { toast('사진 칸이 하나도 없어요. 칸을 먼저 만들어 주세요'); return; } this.pickSlot = false; clearTimeout(this.ct); this.commit(); const c = edSnap(this.fr); const i = FRAMES.findIndex(x => x.id === c.id); if (i >= 0) FRAMES[i] = c; else FRAMES.push(c); save(); this.isNew = false; this.hist = [edSnap(c)]; this.hi = 0; toast('저장했어요'); go('admin'); },
 };
 $('#edSave').addEventListener('click', () => Editor.save());
 $('#edCancel').addEventListener('click', () => {
@@ -1808,7 +1890,7 @@ document.addEventListener('keydown', e => {
   if (cur !== 'editor' || !Editor.fr) return; const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName);
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); Editor.undoTo(e.shiftKey ? Editor.hi + 1 : Editor.hi - 1); }
   else if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && Editor.sel) { e.preventDefault(); const fr = Editor.fr, s = Editor.sel;
-    if (s.t === 'text') fr.texts.splice(s.i, 1); else if (fr.slots.length > 1) fr.slots.splice(s.i, 1); Editor.sel = null; Editor.change(); }
+    if (s.t === 'text') fr.texts.splice(s.i, 1); else if (s.t === 'deco') fr.decos.splice(s.i, 1); else if (fr.slots.length > 1) fr.slots.splice(s.i, 1); Editor.sel = null; Editor.change(); }
 });
 SC.editor = { resize(){ Editor.draw(); } };
 (() => {
@@ -1839,6 +1921,9 @@ SC.editor = { resize(){ Editor.draw(); } };
     if (!Editor.fr) return; cv.setPointerCapture(e.pointerId); const p = toF(e); ptrs.set(e.pointerId, devXY(e));
     if (ptrs.size === 2) { if (stroke) endStroke(); Editor.drag = null; const [a, b] = [...ptrs.values()]; gesture = {d0:Math.hypot(b.x - a.x, b.y - a.y), z0:Editor.zoom, m0:{x:(a.x + b.x)/2, y:(a.y + b.y)/2}}; return; }
     if (Editor.brush && Editor.fr.overlay) { if (!(await prepOv())) return; if (Editor.brush === 'restore' && !Editor.origIm) { toast('되살리려면 그림을 다시 올려 주세요'); return; } stroke = {last:p}; Editor.cursor = p; dab(p, p); Editor.draw(); return; }
+    if (Editor.pickSlot && Editor.fr.bgImg) { const fr = Editor.fr; const ns = await maskSlots(fr.bgImg, Editor.W(), Editor.H(), {fx:p.x/Editor.W(), fy:p.y/Editor.H()});
+      if (!ns.length) { toast('그 자리는 칸으로 쓰기에 너무 작거나 커요. 칸 안쪽을 눌러 주세요', 4000); return; }
+      fr.slots.push(ns[0]); await ensureImgs(fr); Editor.sel = {t:'slot', i:fr.slots.length - 1}; toast(`${fr.slots.length}번 칸으로 넣었어요`); Editor.change(); return; }
     if (Editor.punch && Editor.fr.overlay) { const fr = Editor.fr; (async () => {
       const r = await punchAt(fr.overlay, p.x/Editor.W(), p.y/Editor.H());
       if (!r || !r.url) { toast(r && r.tooBig ? '그림 전체가 같은 색이라 뚫을 수 없어요. 칸에 테두리를 넣거나 다른 색으로 칠해 주세요' : '이미 투명한 곳이에요', 4500); return; }
@@ -1850,7 +1935,8 @@ SC.editor = { resize(){ Editor.draw(); } };
     Editor.sel = {t:h.t, i:h.i};
     if (changed && h.t === 'slot' && Editor.tab !== 'slots') { Editor.tab = 'slots'; Editor.rail(); }
     if (changed && h.t === 'text' && Editor.tab !== 'text') { Editor.tab = 'text'; Editor.rail(); }
-    const o = h.t === 'slot' ? Editor.fr.slots[h.i] : Editor.fr.texts[h.i];
+    if (changed && h.t === 'deco' && Editor.tab !== 'start') { Editor.tab = 'start'; Editor.rail(); }
+    const o = h.t === 'slot' ? Editor.fr.slots[h.i] : h.t === 'deco' ? Editor.fr.decos[h.i] : Editor.fr.texts[h.i];
     Editor.drag = {mode:h.h === 'size' ? 'size' : 'move', p0:p, o0:{...o}};
     if (changed) { Editor.tool(); Editor.props(); } Editor.draw();
   });
@@ -1861,13 +1947,14 @@ SC.editor = { resize(){ Editor.draw(); } };
     if (Editor.brush) { const p = toF(e); Editor.cursor = p; if (stroke) { dab(stroke.last, p); stroke.last = p; } Editor.draw(); return; }
     if (Editor.drag && Editor.drag.mode === 'pan') { const d = Editor.drag, q = devXY(e), v = Editor.view; Editor.pan.x = d.pan0.x - (q.x - d.d0.x)/v.s; Editor.pan.y = d.pan0.y - (q.y - d.d0.y)/v.s; Editor.draw(); return; }
     const d = Editor.drag; if (!d || !Editor.sel) return; const p = toF(e); const dx = p.x - d.p0.x, dy = p.y - d.p0.y;
-    const o = Editor.sel.t === 'slot' ? Editor.fr.slots[Editor.sel.i] : Editor.fr.texts[Editor.sel.i]; if (!o) return;
-    if (d.mode === 'size') { o.w = Math.max(5*MM, d.o0.w + dx); o.h = Math.max(5*MM, d.o0.h + dy); }
+    const o = Editor.sel.t === 'slot' ? Editor.fr.slots[Editor.sel.i] : Editor.sel.t === 'deco' ? Editor.fr.decos[Editor.sel.i] : Editor.fr.texts[Editor.sel.i]; if (!o) return;
+    if (d.mode === 'size' && Editor.sel.t === 'deco') { const k = Math.max(0.05, (d.o0.w + dx)/d.o0.w); o.w = d.o0.w*k; o.h = d.o0.h*k; }
+    else if (d.mode === 'size') { o.w = Math.max(5*MM, d.o0.w + dx); o.h = Math.max(5*MM, d.o0.h + dy); }
     else { o.x = Math.round(d.o0.x + dx); o.y = Math.round(d.o0.y + dy); }
     Editor.draw();
   });
   const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) gesture = null; if (stroke) { endStroke(); return; }
-    if (Editor.drag) { const pan = Editor.drag.mode === 'pan'; Editor.drag = null; if (!pan) { Editor.change(false); if (Editor.sel && Editor.sel.t === 'slot') Editor.props(); } } };
+    if (Editor.drag) { const pan = Editor.drag.mode === 'pan'; Editor.drag = null; if (!pan) { Editor.change(false); if (Editor.sel && Editor.sel.t !== 'text') Editor.props(); } } };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 })();
 // 덮는 PNG에서 투명한 구멍 찾기
@@ -1930,6 +2017,43 @@ async function punchWhite(src){
       if ((ix > 0 && kill[i-1]) || (ix < w-1 && kill[i+1]) || (i >= w && kill[i-w]) || (i < N-w && kill[i+w])) add.push(i); }
     for (const i of add) { a[i*4+3] = 0; kill[i] = 1; } }
   x.putImageData(d, 0, 0); return {url:c.toDataURL('image/png'), n:found};
+}
+// 배경 그림에서 칸 찾기: 하얀 칸(또는 누른 곳의 색 덩어리)을 칸 모양 그대로(mask) 사진 칸으로 만들어요. 배경 그림은 바꾸지 않아요.
+async function maskSlots(src, W, H, at){
+  let im;
+  if (at) im = await getImg(src).p;
+  else { const r = await punchWhite(src); if (!r) return []; im = await getImg(r.url).p; }
+  if (!im) return [];
+  const [iw, ih] = dims(im), k = Math.min(1, 900/Math.max(iw, ih)), w = Math.round(iw*k), h = Math.round(ih*k), N = w*h;
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.drawImage(im, 0, 0, w, h); const a = x.getImageData(0, 0, w, h).data;
+  const lab = new Int32Array(N), st = new Int32Array(N); const out = []; let id = 0;
+  let inReg;
+  if (at) { const sx = Math.min(w-1, Math.max(0, Math.floor(at.fx*w))), sy = Math.min(h-1, Math.max(0, Math.floor(at.fy*h))), s0 = (sy*w + sx)*4, R = a[s0], G = a[s0+1], B = a[s0+2];
+    inReg = i => a[i*4+3] > 60 && Math.max(Math.abs(a[i*4] - R), Math.abs(a[i*4+1] - G), Math.abs(a[i*4+2] - B)) <= 18; }
+  else inReg = i => a[i*4+3] < 60;
+  const seeds = at ? [Math.min(h-1, Math.max(0, Math.floor(at.fy*h)))*w + Math.min(w-1, Math.max(0, Math.floor(at.fx*w)))] : Array.from({length:N}, (_, i) => i);
+  for (const i0 of seeds) {
+    if (lab[i0] || !inReg(i0)) continue; id++;
+    let top = 0, cnt = 0, minx = w, miny = h, maxx = 0, maxy = 0; st[top++] = i0; lab[i0] = id;
+    while (top) { const q = st[--top], qx = q % w, qy = (q - qx)/w; cnt++;
+      if (qx < minx) minx = qx; if (qx > maxx) maxx = qx; if (qy < miny) miny = qy; if (qy > maxy) maxy = qy;
+      for (const n of [qx > 0 ? q-1 : -1, qx < w-1 ? q+1 : -1, q-w, q+w]) if (n >= 0 && n < N && !lab[n] && inReg(n)) { lab[n] = id; st[top++] = n; } }
+    if (cnt < N*(at ? 0.002 : 0.006) || cnt > N*0.6) continue;
+    // 칸 안의 구멍(글자, 캐릭터)은 메워서 칸 모양 전체를 써요
+    const bw = maxx - minx + 1, bh = maxy - miny + 1, outside = new Uint8Array(bw*bh), s2 = [];
+    const isC = (bx, by) => lab[(by+miny)*w + bx+minx] === id;
+    for (let bx = 0; bx < bw; bx++) for (const by of [0, bh-1]) if (!isC(bx, by) && !outside[by*bw+bx]) { outside[by*bw+bx] = 1; s2.push(by*bw+bx); }
+    for (let by = 0; by < bh; by++) for (const bx of [0, bw-1]) if (!isC(bx, by) && !outside[by*bw+bx]) { outside[by*bw+bx] = 1; s2.push(by*bw+bx); }
+    while (s2.length) { const q = s2.pop(), bx = q % bw, by = (q - bx)/bw;
+      for (const [nx, ny] of [[bx-1, by], [bx+1, by], [bx, by-1], [bx, by+1]]) { if (nx < 0 || ny < 0 || nx >= bw || ny >= bh) continue; const n = ny*bw + nx; if (!outside[n] && !isC(nx, ny)) { outside[n] = 1; s2.push(n); } } }
+    const mc = document.createElement('canvas'); mc.width = bw; mc.height = bh; const mx = mc.getContext('2d'), md = mx.createImageData(bw, bh);
+    let fill = 0; for (let q = 0; q < bw*bh; q++) if (!outside[q]) { md.data[q*4] = md.data[q*4+1] = md.data[q*4+2] = 255; md.data[q*4+3] = 255; fill++; }
+    mx.putImageData(md, 0, 0);
+    const fx = W/w, fy = H/h, box = {x:Math.round(minx*fx), y:Math.round(miny*fy), w:Math.round(bw*fx), h:Math.round(bh*fy)};
+    out.push({...box, shape:'rect', mask: fill/(bw*bh) > 0.998 ? null : mc.toDataURL('image/png')});
+  }
+  const rowTol = H*0.03; out.sort((p, q) => Math.abs(p.y - q.y) < rowTol ? p.x - q.x : p.y - q.y);
+  return out;
 }
 // 누른 곳과 같은 색으로 이어진 부분만 투명하게 (배경도 하얀색일 때, 칸 색이 하얗지 않을 때)
 async function punchAt(src, fx, fy){
