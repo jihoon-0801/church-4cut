@@ -1470,7 +1470,11 @@ const Editor = { fr:null, sel:null, drag:null, view:null,
     if (fr.bgImg) imgRow.appendChild(btn('배경 그림 빼기', () => { fr.bgImg = null; this.panel(); this.draw(); }));
     const ovRow = el('div', {class:'row'});
     ovRow.appendChild(filePick('위에 덮는 그림 (PNG, JPG)', 'image/*', async f => {
-      fr.overlay = scaledDataURL(await fileToImage(f), 2400); await ensureImgs(fr);
+      const fim = await fileToImage(f); fr.overlay = scaledDataURL(fim, 2400); await ensureImgs(fr);
+      { const [iw, ih] = dims(fim), ra = iw/ih; if (Math.abs(ra/(fr.Wmm/fr.Hmm) - 1) > 0.03) {   // 그림 비율이 프레임과 다르면 크기를 그림에 맞춰요 (그림이 찌그러지지 않게)
+        let H = 148, W = Math.round(H*ra*10)/10; if (W > 100) { W = 100; H = Math.round(W/ra*10)/10; }
+        const sx = W/fr.Wmm, sy = H/fr.Hmm; fr.Wmm = W; fr.Hmm = H; (fr.texts || []).forEach(t => { t.x *= sx; t.y *= sy; });
+        toast(`그림 비율에 맞춰 프레임 크기를 ${W}×${H}mm로 바꿨어요`, 4500); } }
       if (!(await hasHoles(fr.overlay))) { const r = await punchWhite(fr.overlay); if (r) { fr.overlay = r.url; await ensureImgs(fr); } }   // 투명한 곳이 없으면 하얀 칸을 뚫어요
       const s = await detectHoles(fr); if (s.length) { fr.slots = s; this.sel = null; toast(`사진 칸 ${s.length}개를 찾았어요`); } else toast('사진 칸을 찾지 못했어요. 칸을 직접 추가해 주세요');
       this.panel(); this.draw(); }));
