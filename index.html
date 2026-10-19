@@ -66,6 +66,13 @@ button{cursor:pointer}
 /* 시작 화면 */
 #home{background:var(--dark);color:#fff}
 #home .kbar{grid-template-columns:1fr auto}
+#home.has-bg{background:var(--dark) center/cover no-repeat;position:relative}
+#home.has-bg::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,var(--bg-dim,0));pointer-events:none}
+#home.has-bg>*{position:relative}
+#home.has-bg .home-start{box-shadow:0 8px 30px rgba(0,0,0,.35)}
+#home.has-bg #homeLogo,#home.has-bg .touch,#home.has-bg .count,#home.has-bg .count b,#home.has-bg .eyebrow{color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+#home.has-bg #homeTitle{text-shadow:0 2px 14px rgba(0,0,0,.45)}
+#home.bg-only .home-body>*{visibility:hidden}
 #gear{width:52px;height:52px;border:0;background:transparent;color:#5a5a5a;display:grid;place-items:center;border-radius:50%}
 #gear svg{width:28px;height:28px}
 .home-body{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(14px,3vh,30px);text-align:center}
@@ -251,7 +258,7 @@ input[type=range]{width:100%;accent-color:var(--ink)}
   #printArea{display:block!important}
 }
 @media (prefers-reduced-motion:reduce){#flash.go{animation:none}}
-.home-pv{display:flex;gap:10px;flex-wrap:wrap}.home-pv .pv-box{flex:1;min-width:160px;background:#111;color:#ddd;border-radius:14px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:120px}.home-pv span{font-size:12px;color:#999;align-self:flex-start}.home-pv img{max-height:110px;max-width:100%;object-fit:contain}.home-pv b{font-size:18px;margin:auto 0 0}.home-pv i{font-size:12px;color:#888;font-style:normal;margin-bottom:auto}
+.home-pv .bg-pv{min-height:200px;background:#111 center/cover no-repeat}.home-pv{display:flex;gap:10px;flex-wrap:wrap}.home-pv .pv-box{flex:1;min-width:160px;background:#111;color:#ddd;border-radius:14px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:120px}.home-pv span{font-size:12px;color:#999;align-self:flex-start}.home-pv img{max-height:110px;max-width:100%;object-fit:contain}.home-pv b{font-size:18px;margin:auto 0 0}.home-pv i{font-size:12px;color:#888;font-style:normal;margin-bottom:auto}
 </style>
 
 <!-- 홈 -->
@@ -875,6 +882,8 @@ const enabledFilters = () => S.filters.filter(k => PRESETS[k]);
 SC.home = {
   enter(){
     $('#homeTitle').textContent = S.homeTitle;
+    const hm = $('#home'); hm.classList.toggle('has-bg', !!S.homeBg); hm.classList.toggle('bg-only', !!S.homeBg && !!S.homeBgOnly);
+    hm.style.backgroundImage = S.homeBg ? `url("${S.homeBg}")` : ''; hm.style.setProperty('--bg-dim', S.homeBg ? (S.homeBgDim || 0) / 100 : 0);
     const hi = $('#homeImg'); hi.src = S.homeImg || DEFAULT_HOME_IMG; hi.hidden = false;
     const lg = $('#homeLogo'); lg.innerHTML = '';
     if (S.logoImg) lg.appendChild(el('img', {src:S.logoImg, alt:S.churchName || '교회 로고'}));
@@ -1284,6 +1293,16 @@ SC.admin = {
       r1.appendChild(btn('가운데 그림 처음대로', () => { S.homeImg = null; save(); toast('기본 그림으로 돌렸어요'); this.render(); }));
       r1.appendChild(filePick('교회 로고 넣기', 'image/*', async f => { S.logoImg = scaledDataURL(await fileToImage(f), 900); save(); toast('로고를 넣었어요'); this.render(); }));
       r1.appendChild(btn('로고 지우기', () => { S.logoImg = null; save(); toast('로고를 뺐어요'); this.render(); }));
+      p.appendChild(grp('처음 화면 배경',
+        el('div', {class:'home-pv'}, `<div class="pv-box bg-pv" style="${S.homeBg ? `background-image:url('${S.homeBg}')` : ''}"><span>배경</span>${S.homeBg ? '' : '<b>배경 없음</b><i>지금은 검정 배경이에요</i>'}</div>`),
+        '<span class="small">행사 포스터나 콜라보 이미지처럼 화면 전체를 꾸민 그림을 넣어요. 화면에 꽉 차게 맞추고 넘치는 가장자리는 잘려요. 태블릿을 가로로 쓰면 가로 그림(예 1920×1200), 세로로 쓰면 세로 그림이 좋아요. "프레임 고르기" 버튼은 항상 위에 보여요.</span>',
+        tog('배경 그림만 보이기 (인사말·가운데 그림·로고 숨기기)', () => S.homeBgOnly, v => S.homeBgOnly = v),
+        num('배경 어둡게 (%, 글자가 잘 보이게)', () => S.homeBgDim || 0, v => S.homeBgDim = v, 0, 80),
+        el('div', {class:'row'}),
+      ));
+      const rb = p.lastChild.lastChild;
+      rb.appendChild(filePick('배경 그림 넣기', 'image/*', async f => { S.homeBg = scaledDataURL(await fileToImage(f), 2200, 'image/jpeg', 0.9); save(); toast('배경을 넣었어요'); this.render(); }));
+      rb.appendChild(btn('배경 지우기', () => { S.homeBg = null; save(); toast('배경을 지웠어요'); this.render(); }));
       p.appendChild(grp('부스 운영',
         tog('손님이 시작하면 전체 화면으로', () => S.fullscreen, v => S.fullscreen = v),
         num('완성 화면에서 처음으로 돌아가는 시간 (초)', () => S.idleSec, v => S.idleSec = v, 15, 600),
