@@ -504,7 +504,7 @@ function cropFor(sw, sh, outAspect, rot, zoom, shiftY){
   return {x:x/sw, y:y/sh, w:cw/sw, h:ch/sh};
 }
 const c2d = document.createElement('canvas');
-let lastUploaded = null;
+let lastUploaded = null, lastUploadTick = -1, tickId = 0;   // 같은 화면 갱신 안에서만 텍스처를 다시 씀
 function render(source, sw, sh, outW, outH, crop, mirror, rot, f, reuse = false){
   outW = Math.max(2, Math.round(outW)); outH = Math.max(2, Math.round(outH));
   if (!gl) {
@@ -516,7 +516,7 @@ function render(source, sw, sh, outW, outH, crop, mirror, rot, f, reuse = false)
   if (glc.width !== outW || glc.height !== outH) { glc.width = outW; glc.height = outH; }
   gl.viewport(0, 0, outW, outH);
   gl.bindTexture(gl.TEXTURE_2D, tex);
-  if (!(reuse && lastUploaded === source)) { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source); lastUploaded = source; }
+  if (!(reuse && lastUploaded === source && lastUploadTick === tickId)) { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, source); lastUploaded = source; lastUploadTick = tickId; }
   gl.uniform1i(U.uTex, 0); gl.uniform2f(U.uTexel, 1/sw, 1/sh);
   gl.uniform4f(U.uCrop, crop.x, crop.y, crop.w, crop.h);
   gl.uniform1f(U.uMirror, mirror ? 1 : 0); gl.uniform1f(U.uRot, rot);
@@ -798,7 +798,7 @@ function go(id){
   cur = id; if (SC[id] && SC[id].enter) SC[id].enter();
 }
 $$('.back').forEach(b => b.addEventListener('click', () => go(b.dataset.to)));
-(function loop(){ const s = SC[cur]; if (s && s.tick) { try { s.tick(); } catch(e) { console.error(e); } } requestAnimationFrame(loop); })();
+(function loop(){ tickId++; const s = SC[cur]; if (s && s.tick) { try { s.tick(); } catch(e) { console.error(e); } } requestAnimationFrame(loop); })();
 window.addEventListener('resize', () => { const s = SC[cur]; if (s && s.resize) s.resize(); });
 
 let sess = null;   // 손님 한 명(팀)의 촬영
