@@ -2,147 +2,184 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gaegu:wght@400;700&family=Gowun+Dodum&family=IBM+Plex+Sans+KR:wght@400;600&family=Jua&family=Nanum+Pen+Script&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700;800;900&family=Poppins:wght@500;600&family=Gaegu:wght@400;700&family=Gowun+Dodum&family=IBM+Plex+Sans+KR:wght@400;600&family=Jua&family=Nanum+Pen+Script&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
-/* Layout: kiosk. One full-screen step at a time (home, frame, guide, filter, shoot, pick, sticker, done), big black buttons at the bottom like a photo booth. Deliberately one bright paper look so it reads like the booth apps people already know. */
+/* Layout: photo-booth kiosk. Each guest step is one full screen: a step bar with the remaining time on top, an English eyebrow over a heavy Korean title, the content in the middle, and previous/next pill buttons at the bottom. Light gray floor, white cards, black ink; the start screen is the one dark "touch to start" screen. */
 :root{
+  --floor:#f1f1f1;
   --paper:#ffffff;
-  --ink:#121114;
-  --sub:#6d6a74;
-  --line:#e7e4ec;
-  --soft:#f4f3f7;
-  --pop:#ff5c8a;
-  --dark:#0e0d10;
-  --ok:#21a46b;
-  --f-hand:"Gaegu","Jua","Apple SD Gothic Neo",sans-serif;
-  --f-round:"Jua","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
-  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --ink:#111111;
+  --sub:#7b7b7b;
+  --line:#e1e1e1;
+  --soft:#f6f6f6;
+  --pop:#ff3b6b;
+  --dark:#0c0c0c;
+  --f-head:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-en:"Poppins","Noto Sans KR",sans-serif;
+  --f-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-round:"Jua","Apple SD Gothic Neo",sans-serif;
   color-scheme:light;
 }
 html,body{height:100%}
-body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+body{background:var(--floor);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
 *{box-sizing:border-box}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:3px solid var(--pop);outline-offset:2px}
 
-.screen{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--paper);
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--floor);
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));overflow:hidden}
-.top{display:flex;align-items:center;justify-content:space-between;min-height:68px;gap:12px}
-.icon-btn{width:52px;height:52px;border:0;background:transparent;border-radius:14px;display:grid;place-items:center;padding:0}
-.icon-btn svg{width:30px;height:30px}
-.icon-btn:active{background:var(--soft)}
-.head{font-family:var(--f-hand);font-weight:700;font-size:clamp(30px,5.2vh,46px);line-height:1.2;text-align:center;margin:0;text-wrap:balance;white-space:pre-line}
-.lead{color:var(--sub);text-align:center;margin:0}
-.big{display:block;width:100%;max-width:620px;margin-inline:auto;border:0;border-radius:18px;background:var(--ink);color:#fff;font-family:var(--f-round);font-size:clamp(22px,3.2vh,28px);padding:20px 16px}
-.big:disabled{opacity:.35}
-.big.ghost{background:var(--soft);color:var(--ink)}
-.foot{padding-block:16px 20px;display:flex;flex-direction:column;gap:10px}
+  padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));overflow:hidden}
 .body{flex:1;min-height:0;display:flex;flex-direction:column;gap:16px;overflow:auto}
 .center{align-items:center;justify-content:center}
+.lead{color:var(--sub);text-align:center;margin:0}
+.small{font-size:14px;color:var(--sub);margin:0}
 
-/* home */
-#home .body{align-items:center;justify-content:center;gap:clamp(12px,3vh,28px)}
-#homeTitle{font-size:clamp(40px,7.5vh,72px)}
-#homeImg{max-height:34vh;max-width:min(80vw,520px);object-fit:contain}
-#homeLogo{display:flex;align-items:center;gap:10px;font-family:var(--f-round);font-size:22px}
-#homeLogo img{max-height:9vh;max-width:70vw;object-fit:contain}
-.count{text-align:center;font-size:20px;margin:0}
+/* 키오스크 공통: 위 단계 바, 제목, 아래 버튼 */
+.kbar{display:grid;grid-template-columns:56px minmax(0,1fr) auto;align-items:center;gap:12px;min-height:78px}
+.kback{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:var(--paper);display:grid;place-items:center;padding:0}
+.kback svg{width:24px;height:24px}
+.ksteps{display:flex;justify-content:center;gap:4px;flex-wrap:wrap;min-width:0}
+.ksteps span{display:flex;align-items:center;gap:7px;font-size:14px;color:#a8a8a8;font-weight:500;padding:6px 12px 6px 6px;border-radius:99px;white-space:nowrap}
+.ksteps i{width:24px;height:24px;border-radius:50%;background:#d9d9d9;color:#fff;font-style:normal;font-family:var(--f-en);font-weight:600;font-size:12px;display:grid;place-items:center}
+.ksteps b{font-weight:500}
+.ksteps .done i{background:#8d8d8d}
+.ksteps .on{color:var(--ink);background:var(--paper);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.ksteps .on b{font-weight:700}
+.ksteps .on i{background:var(--ink)}
+@media (max-width:1000px){ .ksteps span:not(.on) b{display:none} .ksteps span:not(.on){padding:6px} }
+.ktime{display:flex;align-items:center;gap:8px;background:var(--ink);color:#fff;border-radius:99px;padding:8px 18px 8px 16px;font-size:14px;white-space:nowrap}
+.ktime b{font-family:var(--f-en);font-size:22px;font-weight:600;min-width:2ch;text-align:right;font-variant-numeric:tabular-nums;line-height:1}
+.ktime.warn{background:var(--pop)}
+.kspacer{width:1px}
+.ktitle{text-align:center;padding-block:4px 18px}
+.ktitle small{display:block;font-family:var(--f-en);font-weight:600;letter-spacing:.22em;font-size:13px;color:var(--sub)}
+.ktitle h2{margin:6px 0 0;font-family:var(--f-head);font-weight:900;font-size:clamp(26px,4.4vh,42px);letter-spacing:-.02em;line-height:1.2;text-wrap:balance}
+.knav{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-block:14px 22px}
+.knav.end{justify-content:flex-end}
+.kbtn{min-width:180px;border:0;border-radius:99px;background:var(--ink);color:#fff;font-weight:700;font-size:clamp(18px,2.6vh,22px);padding:18px 38px;display:inline-flex;align-items:center;justify-content:center;gap:10px}
+.kbtn.ghost{background:var(--paper);color:var(--ink);border:1px solid var(--line)}
+.kbtn:disabled{background:#cdcdcd;color:#fff;cursor:default}
+.kbtn svg{width:20px;height:20px}
 
-/* frames */
-.tabs{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
-.tab{border:2px solid var(--line);background:var(--paper);border-radius:99px;padding:10px 22px;font-family:var(--f-round);font-size:20px}
-.tab[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
-.frame-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,190px));justify-content:center;gap:18px;padding:4px 2px 20px;align-content:start}
-.frame-card{border:0;background:var(--soft);border-radius:18px;padding:14px 10px 12px;display:flex;flex-direction:column;align-items:center;gap:10px}
-.frame-card img{height:clamp(160px,26vh,280px);width:auto;max-width:100%;object-fit:contain;filter:drop-shadow(0 4px 10px rgba(0,0,0,.15))}
-.frame-card span{font-family:var(--f-round);font-size:18px}
-.frame-card:active{transform:scale(.98)}
+/* 시작 화면 */
+#home{background:var(--dark);color:#fff}
+#home .kbar{grid-template-columns:1fr auto}
+#gear{width:52px;height:52px;border:0;background:transparent;color:#5a5a5a;display:grid;place-items:center;border-radius:50%}
+#gear svg{width:28px;height:28px}
+.home-body{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(14px,3vh,30px);text-align:center}
+.eyebrow{font-family:var(--f-en);letter-spacing:.32em;font-weight:600;font-size:14px;color:#8f8f8f;margin:0}
+#homeTitle{font-family:var(--f-head);font-weight:900;font-size:clamp(40px,8vh,86px);letter-spacing:-.03em;margin:0;line-height:1.1;text-wrap:balance}
+#homeImg{max-height:30vh;max-width:min(80vw,520px);object-fit:contain}
+#homeLogo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:22px;color:#d8d8d8}
+#homeLogo img{max-height:8vh;max-width:70vw;object-fit:contain}
+.home-foot{display:flex;flex-direction:column;align-items:center;gap:14px;padding-block:10px 28px}
+.home-start{border:0;background:#fff;color:#111;border-radius:99px;font-weight:800;font-size:clamp(22px,3.2vh,30px);padding:22px 72px;min-width:min(520px,90vw)}
+.touch{font-family:var(--f-en);letter-spacing:.32em;font-size:13px;color:#8a8a8a;margin:0;animation:blink 1.8s ease-in-out infinite}
+@keyframes blink{50%{opacity:.25}}
+.count{text-align:center;font-size:15px;color:#777;margin:0}
+.count b{color:#bbb;font-family:var(--f-en)}
 
-/* guide */
-.guide-card{background:var(--paper);border:1px solid var(--line);border-radius:22px;box-shadow:0 8px 28px rgba(20,10,40,.1);padding:18px;display:flex;justify-content:center}
-.guide-card img{max-height:38vh;max-width:100%;object-fit:contain}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:640px;margin-inline:auto}
-.tiles div{border:1px solid var(--line);border-radius:18px;padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;font-size:17px;color:#333}
-.tiles svg{width:34px;height:34px}
-.tips{max-width:640px;margin:0 auto;padding-left:22px;color:#333;display:flex;flex-direction:column;gap:4px;font-size:17px}
+/* 프레임 고르기 */
+.seg{display:inline-flex;background:#e4e4e4;border-radius:99px;padding:4px;gap:4px;align-self:center}
+.seg button{border:0;background:transparent;border-radius:99px;padding:11px 28px;font-weight:700;font-size:17px;color:#777}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.frame-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,200px));justify-content:center;gap:20px;padding:6px 4px 20px;align-content:start}
+.frame-card{position:relative;border:3px solid transparent;background:var(--paper);border-radius:22px;padding:18px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.frame-card img{height:clamp(170px,28vh,300px);width:auto;max-width:100%;object-fit:contain;filter:drop-shadow(0 3px 8px rgba(0,0,0,.14))}
+.frame-card span{font-weight:700;font-size:17px}
+.frame-card[aria-pressed="true"]{border-color:var(--ink)}
+.frame-card[aria-pressed="true"]::after{content:"";position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;background:var(--ink) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/18px no-repeat}
 
-/* filter */
+/* 촬영 방법 */
+.guide-wrap{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:28px;align-items:center;max-width:1100px;width:100%;margin:0 auto}
+.guide-card{background:var(--paper);border-radius:24px;box-shadow:0 6px 24px rgba(0,0,0,.07);padding:22px;display:flex;flex-direction:column;align-items:center;gap:10px;height:100%;min-height:0;justify-content:center}
+.guide-card img{max-height:calc(100% - 30px);max-width:100%;object-fit:contain}
+.guide-side{display:flex;flex-direction:column;gap:16px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.tiles div{background:var(--paper);border-radius:18px;padding:16px 8px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;font-size:16px;font-weight:700}
+.tiles svg{width:32px;height:32px}
+.tips{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;counter-reset:tip}
+.tips li{background:var(--paper);border-radius:14px;padding:14px 16px 14px 52px;position:relative;font-size:17px}
+.tips li::before{counter-increment:tip;content:counter(tip);position:absolute;left:14px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-family:var(--f-en);font-weight:600;font-size:13px;display:grid;place-items:center}
+
+/* 필터 */
 .live-wrap{position:relative;flex:1;min-height:200px}
 .live-wrap canvas{position:absolute;inset:0;width:100%;height:100%}
-.badge{position:absolute;top:10px;right:10px;background:var(--ink);color:#fff;border-radius:99px;padding:6px 14px;font-family:var(--f-round);font-size:18px}
-.notice{background:#fff4f7;border:1px solid #ffc6d6;color:#7a2441;border-radius:14px;padding:10px 14px;font-size:15px;text-align:center}
-.filters{display:flex;gap:12px;overflow-x:auto;padding:4px 2px 6px;justify-content:safe center}
-.fbtn{border:3px solid transparent;background:var(--soft);border-radius:16px;padding:6px;display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 0 auto}
-.fbtn canvas{width:118px;height:118px;border-radius:10px;display:block;background:#ddd}
-.fbtn span{font-family:var(--f-round);font-size:17px}
-.fbtn[aria-pressed="true"]{border-color:var(--ink);background:var(--paper)}
-#decoFilters{flex-wrap:wrap;justify-content:flex-start;overflow:auto}
-#decoFilters .fbtn canvas{width:104px;height:104px}
+.notice{background:#fff0f4;border:1px solid #ffc3d2;color:#8a1f3d;border-radius:14px;padding:10px 14px;font-size:15px;text-align:center}
+.filters{display:flex;gap:12px;overflow-x:auto;padding:6px 2px 6px;justify-content:safe center}
+.fbtn{border:3px solid transparent;background:var(--paper);border-radius:18px;padding:6px 6px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 auto}
+.fbtn canvas{width:116px;height:116px;border-radius:12px;display:block;background:#ddd}
+.fbtn span{font-weight:700;font-size:15px}
+.fbtn[aria-pressed="true"]{border-color:var(--ink)}
 
-/* shoot */
+/* 촬영 */
 #shoot{background:var(--dark);color:#fff;padding:0}
 #shoot canvas{position:absolute;inset:0;width:100%;height:100%}
-.pill{position:absolute;left:50%;transform:translateX(-50%);background:rgba(20,20,24,.82);color:#fff;border-radius:99px;font-family:var(--f-round);padding:10px 26px;white-space:nowrap}
-#shotCounter{top:calc(18px + env(safe-area-inset-top,0px));font-size:26px}
-#phrase{top:62%;font-size:24px;background:rgba(110,110,120,.75)}
-#countNum{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-family:var(--f-round);font-size:min(36vw,34vh);color:#fff;-webkit-text-stroke:min(1.6vw,1.4vh) #111;paint-order:stroke fill;line-height:1}
+.pill{position:absolute;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.12);color:#fff;border-radius:99px;padding:10px 26px;white-space:nowrap;backdrop-filter:blur(6px)}
+#shotCounter{top:calc(18px + env(safe-area-inset-top,0px));font-family:var(--f-en);font-weight:600;font-size:24px;letter-spacing:.06em}
+#phrase{top:64%;font-size:24px;font-weight:700;background:rgba(0,0,0,.55)}
+#countNum{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-family:var(--f-en);font-weight:600;font-size:min(34vw,32vh);color:#fff;text-shadow:0 8px 40px rgba(0,0,0,.45);line-height:1}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
 #flash.go{animation:flash .5s ease-out}
 @keyframes flash{0%{opacity:1}100%{opacity:0}}
-.shoot-bar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;gap:24px;padding:16px;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,rgba(0,0,0,.55))}
-.shoot-bar button{border:0;background:#fff;color:#111;border-radius:99px;font-family:var(--f-round);font-size:22px;padding:14px 34px}
-#shootQuit{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:calc(14px + env(safe-area-inset-left,0px));color:#fff}
+.shoot-bar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;gap:24px;padding:16px;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));background:linear-gradient(transparent,rgba(0,0,0,.6))}
+.shoot-bar button{border:0;background:#fff;color:#111;border-radius:99px;font-weight:800;font-size:20px;padding:16px 40px}
+#shootQuit{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:calc(14px + env(safe-area-inset-left,0px));width:52px;height:52px;border:0;border-radius:50%;background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center}
+#shootQuit svg{width:26px;height:26px}
 
-/* pick */
-.pick-wrap{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:20px}
+/* 사진 고르기 */
+.pick-wrap{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:24px}
 .pick-prev{position:relative;min-height:240px}
 .pick-prev canvas{position:absolute;inset:0;width:100%;height:100%}
-.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;align-content:start;overflow:auto;padding:2px}
-.shot{position:relative;border:4px solid transparent;border-radius:14px;padding:0;background:var(--soft);overflow:hidden}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;align-content:start;overflow:auto;padding:3px}
+.shot{position:relative;border:4px solid transparent;border-radius:16px;padding:0;background:var(--paper);overflow:hidden}
 .shot img{display:block;width:100%;height:auto}
-.shot b{position:absolute;top:6px;left:6px;width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:var(--f-round);font-size:20px}
+.shot b{position:absolute;top:8px;left:8px;width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:var(--f-en);font-weight:600;font-size:17px}
 .shot[aria-pressed="true"]{border-color:var(--ink)}
 
-/* deco */
-.deco-wrap{flex:1;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:10px}
+/* 꾸미기 */
+.deco-wrap{flex:1;min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:12px}
 .deco-stage{position:relative;min-height:220px}
 .deco-stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
-.deco-panel{display:flex;flex-direction:column;gap:10px;min-height:0}
+.deco-panel{display:flex;flex-direction:column;gap:12px;min-height:0;background:var(--paper);border-radius:22px;padding:6px 14px 14px}
 .ptabs{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line)}
-.ptabs button{border:0;background:none;padding:12px;font-family:var(--f-round);font-size:22px;color:#999;border-bottom:3px solid transparent}
+.ptabs button{border:0;background:none;padding:14px;font-weight:800;font-size:19px;color:#b0b0b0;border-bottom:3px solid transparent}
 .ptabs button[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
 .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
-.chip{flex:0 0 auto;border:0;background:var(--soft);border-radius:99px;padding:8px 18px;font-size:17px;color:#555}
+.chip{flex:0 0 auto;border:0;background:var(--soft);border-radius:99px;padding:9px 18px;font-size:16px;font-weight:500;color:#555}
 .chip[aria-pressed="true"]{background:var(--ink);color:#fff}
-.stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;max-height:26vh;overflow:auto;padding:2px}
+.stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;max-height:24vh;overflow:auto;padding:2px}
 .stk{border:0;background:var(--soft);border-radius:14px;padding:8px;aspect-ratio:1.3;display:grid;place-items:center}
 .stk img{max-width:100%;max-height:100%;object-fit:contain}
+#decoFilters{flex-wrap:wrap;justify-content:flex-start;overflow:auto}
+#decoFilters .fbtn{background:var(--soft)}
+#decoFilters .fbtn canvas{width:100px;height:100px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .btn{border:1px solid var(--line);background:var(--paper);border-radius:12px;padding:10px 16px;font-size:16px}
 .btn.dark{background:var(--ink);border-color:var(--ink);color:#fff}
 .btn.danger{color:#b4243f;border-color:#f3c3cf}
 @media (min-aspect-ratio:5/4){
-  .deco-wrap{grid-template-rows:none;grid-template-columns:minmax(0,1fr) minmax(320px,440px)}
+  .deco-wrap{grid-template-rows:none;grid-template-columns:minmax(0,1fr) minmax(320px,460px)}
   .stk-grid{max-height:none;flex:1}
 }
 
-/* final */
-.final-wrap{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,380px);gap:24px;align-items:center}
+/* 완성 */
+.final-wrap{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,400px);gap:28px;align-items:center}
 .final-img{display:flex;justify-content:center;align-items:center;min-height:0;height:100%}
-.final-img img{max-height:100%;max-width:100%;object-fit:contain;box-shadow:0 10px 30px rgba(0,0,0,.18)}
-.side{display:flex;flex-direction:column;gap:16px}
-.card{border:1px solid var(--line);border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center}
-.card h3{margin:0;font-family:var(--f-round);font-weight:400;font-size:22px}
-#qrBox img{width:200px;height:200px;image-rendering:pixelated}
-.stepper{display:flex;align-items:center;gap:14px;font-family:var(--f-round);font-size:26px}
-.stepper button{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:var(--soft);font-size:28px;line-height:1}
-.small{font-size:14px;color:var(--sub);margin:0}
+.final-img img{max-height:100%;max-width:100%;object-fit:contain;box-shadow:0 12px 34px rgba(0,0,0,.16)}
+.side{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--paper);border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center}
+.card h3{margin:0;font-weight:800;font-size:20px}
+#qrBox img{width:190px;height:190px;image-rendering:pixelated}
+.stepper{display:flex;align-items:center;gap:16px;font-family:var(--f-en);font-weight:600;font-size:28px}
+.stepper button{width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:var(--soft);font-size:26px;line-height:1}
+.side .kbtn{width:100%}
 @media (max-aspect-ratio:1/1){
   .final-wrap{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
   .pick-wrap{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
+  .guide-wrap{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
   .shots{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));max-height:32vh}
   .side{flex-direction:row;flex-wrap:wrap;justify-content:center}
   .side .card{flex:1 1 240px}
@@ -217,74 +254,81 @@ input[type=range]{width:100%;accent-color:var(--ink)}
 
 <!-- 홈 -->
 <section class="screen" id="home">
-  <div class="top"><span></span>
-    <button class="icon-btn" id="gear" aria-label="관리자 설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8l1.6 2.3 2.7-.6.6 2.7 2.3 1.6-1.4 2.4 1.4 2.4-2.3 1.6-.6 2.7-2.7-.6L12 21.2l-1.6-2.3-2.7.6-.6-2.7-2.3-1.6L6.2 12 4.8 9.6l2.3-1.6.6-2.7 2.7.6z" stroke-linejoin="round"/></svg></button>
+  <div class="kbar"><span></span>
+    <button id="gear" aria-label="관리자 설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8l1.6 2.3 2.7-.6.6 2.7 2.3 1.6-1.4 2.4 1.4 2.4-2.3 1.6-.6 2.7-2.7-.6L12 21.2l-1.6-2.3-2.7.6-.6-2.7-2.3-1.6L6.2 12 4.8 9.6l2.3-1.6.6-2.7 2.7.6z" stroke-linejoin="round"/></svg></button>
   </div>
-  <div class="body">
-    <h1 class="head" id="homeTitle"></h1>
+  <div class="home-body">
+    <p class="eyebrow">PHOTO BOOTH</p>
+    <h1 id="homeTitle"></h1>
     <img id="homeImg" alt="">
     <div id="homeLogo"></div>
   </div>
-  <div class="foot">
-    <button class="big" id="goFrames">프레임 고르기</button>
-    <p class="count">생성된 네컷 개수 : <b id="countNum0"></b></p>
+  <div class="home-foot">
+    <button class="home-start" id="goFrames">프레임 고르기</button>
+    <p class="touch">TOUCH TO START</p>
+    <p class="count">지금까지 만든 네컷 <b id="countNum0"></b>장</p>
   </div>
 </section>
 
 <!-- 프레임 고르기 -->
 <section class="screen" id="frames" hidden>
-  <div class="top"><button class="icon-btn back" data-to="home" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><span></span><span style="width:52px"></span></div>
-  <h2 class="head">어떤 프레임으로<br>찍을까요?</h2>
-  <div class="tabs" id="modeTabs"></div>
-  <div class="body"><div class="frame-grid" id="frameGrid"></div></div>
+  <div class="kbar"><button class="kback back" data-to="home" aria-label="처음으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ksteps" data-step="1"></div><div class="ktime" hidden><span>남은 시간</span><b></b></div></div>
+  <div class="ktitle"><small>SELECT FRAME</small><h2>프레임을 선택해 주세요</h2></div>
+  <div class="seg" id="modeTabs"></div>
+  <div class="body" style="margin-top:14px"><div class="frame-grid" id="frameGrid"></div></div>
+  <div class="knav"><button class="kbtn ghost back" data-to="home">처음으로</button><button class="kbtn" id="framesNext" disabled>다음<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button></div>
 </section>
 
 <!-- 안내 -->
 <section class="screen" id="guide" hidden>
-  <div class="top"><button class="icon-btn back" data-to="frames" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><span></span><span style="width:52px"></span></div>
-  <div class="body center">
-    <h2 class="head">찍기 전에<br>보고 갈까요?!</h2>
-    <div class="guide-card"><img id="guideImg" alt="완성 예시"></div>
-    <p class="lead">촬영하면 이렇게 완성돼요</p>
-    <div class="tiles" id="guideTiles"></div>
-    <ul class="tips" id="guideTips"></ul>
+  <div class="kbar"><button class="kback back" data-to="frames" aria-label="이전"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ksteps" data-step="1"></div><div class="ktime" hidden><span>남은 시간</span><b></b></div></div>
+  <div class="ktitle"><small>HOW TO SHOOT</small><h2>촬영 방법을 확인해 주세요</h2></div>
+  <div class="guide-wrap">
+    <div class="guide-card"><img id="guideImg" alt="완성 예시"><p class="small">촬영하면 이렇게 완성돼요</p></div>
+    <div class="guide-side">
+      <div class="tiles" id="guideTiles"></div>
+      <ul class="tips" id="guideTips"></ul>
+    </div>
   </div>
-  <div class="foot"><button class="big" id="toFilter">필터 고르기</button></div>
+  <div class="knav"><button class="kbtn ghost back" data-to="frames">이전</button><button class="kbtn" id="toFilter">필터 고르기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button></div>
 </section>
 
 <!-- 필터 -->
 <section class="screen" id="filter" hidden>
-  <div class="top"><button class="icon-btn back" data-to="guide" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2 class="head" style="font-size:clamp(26px,4.2vh,38px)">어떤 느낌으로 찍을까요?</h2><span style="width:52px"></span></div>
+  <div class="kbar"><button class="kback back" data-to="guide" aria-label="이전"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ksteps" data-step="2"></div><div class="ktime" hidden><span>남은 시간</span><b></b></div></div>
+  <div class="ktitle"><small>FILTER</small><h2>필터를 선택해 주세요</h2></div>
   <div class="notice" id="camNotice" hidden></div>
-  <div class="live-wrap"><canvas id="filterCanvas"></canvas><div class="badge" id="filterBadge" hidden></div></div>
+  <div class="live-wrap"><canvas id="filterCanvas"></canvas></div>
   <div class="filters" id="filterList"></div>
-  <div class="foot" style="padding-top:8px"><button class="big" id="toShoot">이 필터로 촬영 시작</button></div>
+  <div class="knav"><button class="kbtn ghost back" data-to="guide">이전</button><button class="kbtn" id="toShoot">촬영 시작<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button></div>
 </section>
 
 <!-- 촬영 -->
 <section class="screen" id="shoot" hidden>
   <canvas id="shootCanvas"></canvas>
-  <div class="pill" id="shotCounter">0/4</div>
+  <div class="pill" id="shotCounter">0 / 4</div>
   <div id="countNum"></div>
   <div class="pill" id="phrase" hidden></div>
   <div id="flash"></div>
-  <button class="icon-btn" id="shootQuit" aria-label="처음으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <button id="shootQuit" aria-label="처음으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <div class="shoot-bar"><button id="shootNow">바로 촬영</button></div>
 </section>
 
 <!-- 사진 고르기 -->
 <section class="screen" id="pick" hidden>
-  <div class="top"><span style="width:52px"></span><h2 class="head" id="pickTitle" style="font-size:clamp(26px,4.2vh,38px)"></h2><span style="width:52px"></span></div>
+  <div class="kbar"><span></span><div class="ksteps" data-step="4"></div><div class="ktime" hidden><span>남은 시간</span><b></b></div></div>
+  <div class="ktitle"><small>SELECT PHOTO</small><h2 id="pickTitle"></h2></div>
   <div class="pick-wrap">
     <div class="pick-prev"><canvas id="pickCanvas"></canvas></div>
     <div class="shots" id="shotGrid"></div>
   </div>
-  <div class="foot"><button class="big" id="pickNext" disabled>스티커 붙이러 가기</button></div>
+  <div class="knav end"><button class="kbtn" id="pickNext" disabled>꾸미러 가기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button></div>
 </section>
 
 <!-- 스티커 -->
 <section class="screen" id="deco" hidden>
-  <div class="top"><span style="width:52px"></span><h2 class="head" style="font-size:clamp(26px,4.2vh,38px)">스티커로 꾸며요</h2><button class="btn dark" id="decoDone" style="font-family:var(--f-round);font-size:20px;padding:10px 20px">완성!</button></div>
+  <div class="kbar"><span></span><div class="ksteps" data-step="5"></div><div class="ktime" hidden><span>남은 시간</span><b></b></div></div>
+  <div class="ktitle" style="padding-bottom:10px"><small>DECORATE</small><h2>스티커로 꾸며 주세요</h2></div>
   <div class="deco-wrap">
     <div class="deco-stage"><canvas id="decoCanvas"></canvas></div>
     <div class="deco-panel">
@@ -292,14 +336,17 @@ input[type=range]{width:100%;accent-color:var(--ink)}
       <div class="chips" id="stkCats"></div>
       <div class="stk-grid" id="stkGrid"></div>
       <div class="filters" id="decoFilters" hidden></div>
-      <div class="row"><button class="btn" id="stkUndo">하나 지우기</button><button class="btn" id="stkClear">모두 지우기</button><span class="small">붙인 스티커는 끌어서 옮기고, 모서리 손잡이로 크기와 방향을 바꿔요.</span></div>
+      <div class="row"><button class="btn" id="stkUndo">하나 지우기</button><button class="btn" id="stkClear">모두 지우기</button></div>
+      <p class="small">붙인 스티커는 끌어서 옮기고, 분홍 손잡이로 크기와 방향을 바꿔요.</p>
     </div>
   </div>
+  <div class="knav end"><button class="kbtn" id="decoDone">완성하기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button></div>
 </section>
 
 <!-- 완성 -->
 <section class="screen" id="final" hidden>
-  <div class="top"><span style="width:52px"></span><h2 class="head" style="font-size:clamp(28px,4.6vh,42px)">완성됐어요!</h2><span style="width:52px"></span></div>
+  <div class="kbar"><span></span><div class="ksteps" data-step="6"></div><div class="ktime" hidden><span>처음으로</span><b></b></div></div>
+  <div class="ktitle"><small>PRINT</small><h2>사진이 완성됐어요</h2></div>
   <div class="final-wrap">
     <div class="final-img"><img id="finalImg" alt="완성된 네컷 사진"></div>
     <div class="side">
@@ -309,15 +356,15 @@ input[type=range]{width:100%;accent-color:var(--ink)}
         <p class="small" id="qrMsg"></p>
       </div>
       <div class="card">
-        <h3>인쇄하기</h3>
+        <h3>인쇄 매수</h3>
         <div class="stepper"><button id="cpMinus" aria-label="한 장 빼기">−</button><span id="cpNum">1</span><button id="cpPlus" aria-label="한 장 더">+</button></div>
         <p class="small" id="cpMsg"></p>
-        <button class="btn dark" id="printBtn" style="width:100%;font-size:18px;padding:14px">인쇄하기</button>
+        <button class="kbtn" id="printBtn">인쇄하기</button>
       </div>
-      <button class="big ghost" id="finalHome">처음으로</button>
-      <p class="small" id="idleMsg" style="text-align:center"></p>
+      <button class="kbtn ghost" id="finalHome">처음으로</button>
     </div>
   </div>
+  <p class="small" id="idleMsg" hidden></p>
 </section>
 
 <!-- 관리자 -->
@@ -376,7 +423,7 @@ const PHRASES = ['브이! ✌️','윙크 한 방 날리기 😉','볼 하트 �
 const DEFAULT_SETTINGS = {
   pin:'0000', homeTitle:'친구야! 어서와!', homeImg:null, logoImg:null, churchName:'우리 교회',
   shotTimer:6, extraShots:2, filterTimerOn:true, filterTimerSec:15, filters:Object.keys(PRESETS), defaultFilter:'insaeng',
-  video:true, phrases:PHRASES.join('\n'), idleSec:90, fullscreen:true, count:0,
+  video:true, phrases:PHRASES.join('\n'), idleSec:90, stepTimerOn:true, stepTimerSec:60, fullscreen:true, count:0,
   cam:{ deviceId:'', front:{mirror:true,rot:0,zoom:1,shiftY:0}, top:{mirror:false,rot:0,zoom:1,shiftY:0} },
   print:{ paperW:100, paperH:148, cut:true, offX:0, offY:0, maxCopies:4 },
   qr:{ cloud:'', preset:'', base:'' },
@@ -794,7 +841,22 @@ const Clip = { cv:document.createElement('canvas'), rec:null, chunks:[], active:
 
 /* ================= 화면 전환 ================= */
 let cur = 'home'; const SC = {};
+// 화면 위 "남은 시간" (단계마다 시간이 지나면 다음으로)
+const Step = { t:null,
+  start(sec, onEnd){
+    this.stop(); const box = document.querySelector(`#${cur} .ktime`); if (!box) return;
+    if (!sec) { box.hidden = true; return; }
+    box.hidden = false; let left = sec; const b = box.querySelector('b');
+    const upd = () => { b.textContent = left; box.classList.toggle('warn', left <= 10); }; upd();
+    this.t = setInterval(() => { left--; upd(); if (left <= 0) { this.stop(); onEnd(); } }, 1000);
+  },
+  stop(){ clearInterval(this.t); this.t = null; },
+};
+const stepSec = () => S.stepTimerOn ? S.stepTimerSec : 0;
+const STEPS = ['프레임','필터','촬영','사진 선택','꾸미기','출력'];
+$$('.ksteps').forEach(k => { const n = +k.dataset.step; k.innerHTML = STEPS.map((t, i) => `<span class="${i+1 === n ? 'on' : i+1 < n ? 'done' : ''}"><i>${i+1}</i><b>${t}</b></span>`).join(''); });
 function go(id){
+  Step.stop();
   const prev = SC[cur]; if (prev && prev.leave) prev.leave();
   $$('.screen').forEach(s => s.hidden = s.id !== id);
   cur = id; if (SC[id] && SC[id].enter) SC[id].enter();
@@ -819,7 +881,7 @@ SC.home = {
     sess = null;
   },
 };
-const DEFAULT_HOME_IMG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 260"><g stroke="#121114" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"><rect x="40" y="70" width="240" height="160" rx="30" fill="#fff"/><path d="M110 70l18-28h64l18 28" fill="#fff"/><circle cx="160" cy="150" r="52" fill="#ffd6e2"/><circle cx="160" cy="150" r="28" fill="#fff"/><circle cx="238" cy="104" r="9" fill="#121114"/></g><path d="M262 30c-10-14-32-4-22 14l22 22 22-22c10-18-12-28-22-14z" fill="#ff5c8a" stroke="#121114" stroke-width="5"/><path d="M60 26l6 14 14 6-14 6-6 14-6-14-14-6 14-6z" fill="#ffd84a" stroke="#121114" stroke-width="4" stroke-linejoin="round"/></svg>`);
+const DEFAULT_HOME_IMG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 260"><g stroke="#ffffff" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"><rect x="40" y="70" width="240" height="160" rx="30" fill="#1c1c1c"/><path d="M110 70l18-28h64l18 28" fill="#1c1c1c"/><circle cx="160" cy="150" r="52" fill="#ffd6e2"/><circle cx="160" cy="150" r="28" fill="#1c1c1c"/><circle cx="238" cy="104" r="9" fill="#ffffff"/></g><path d="M262 30c-10-14-32-4-22 14l22 22 22-22c10-18-12-28-22-14z" fill="#ff5c8a" stroke="#121114" stroke-width="5"/><path d="M60 26l6 14 14 6-14 6-6 14-6-14-14-6 14-6z" fill="#ffd84a" stroke="#121114" stroke-width="4" stroke-linejoin="round"/></svg>`);
 $('#goFrames').addEventListener('click', async () => {
   beep(0, .001, .0001);
   if (S.fullscreen && !document.fullscreenElement && document.documentElement.requestFullscreen) { try { await document.documentElement.requestFullscreen(); } catch(e) {} }
@@ -828,18 +890,21 @@ $('#goFrames').addEventListener('click', async () => {
 
 /* ---------- 프레임 고르기 ---------- */
 let pickMode = 'front';
+let pickedFrame = null;
 SC.frames = {
-  async enter(){
+  enter(){ pickedFrame = null; $('#framesNext').disabled = true; this.build(); Step.start(stepSec(), () => pickedFrame ? $('#framesNext').click() : go('home')); },
+  async build(){
     const on = FRAMES.filter(f => f.enabled);
     const modes = ['front','top'].filter(m => on.some(f => f.mode === m));
     if (!modes.includes(pickMode)) pickMode = modes[0] || 'front';
     const tabs = $('#modeTabs'); tabs.innerHTML = '';
-    if (modes.length > 1) modes.forEach(m => tabs.appendChild(el('button', {class:'tab', 'aria-pressed':String(m === pickMode), onclick:() => { pickMode = m; this.enter(); }}, m === 'front' ? '정면에서 찍기' : '위에서 찍기')));
+    tabs.hidden = modes.length < 2;
+    if (modes.length > 1) modes.forEach(m => tabs.appendChild(el('button', {'aria-pressed':String(m === pickMode), onclick:() => { pickMode = m; this.build(); }}, m === 'front' ? '정면에서 찍기' : '위에서 찍기')));
     const grid = $('#frameGrid'); grid.innerHTML = '';
     for (const fr of on.filter(f => f.mode === pickMode)) {
       await ensureImgs(fr);
       const th = frameCanvas(fr, 0.32, {});
-      const b = el('button', {class:'frame-card', onclick:() => { sess = {frame:clone(fr), mode:fr.mode, filter:enabledFilters().includes(S.defaultFilter) ? S.defaultFilter : (enabledFilters()[0] || 'none'), shots:[], chosen:[], stickers:[]}; go('guide'); }});
+      const b = el('button', {class:'frame-card', 'aria-pressed':String(pickedFrame === fr), onclick:() => { pickedFrame = fr; $$('#frameGrid .frame-card').forEach(x => x.setAttribute('aria-pressed', String(x === b))); $('#framesNext').disabled = false; }});
       b.appendChild(el('img', {src:th.toDataURL('image/jpeg', .85), alt:fr.name})); b.appendChild(el('span', {}, esc(fr.name)));
       grid.appendChild(b);
     }
@@ -847,9 +912,12 @@ SC.frames = {
   },
 };
 
+$('#framesNext').addEventListener('click', () => { const fr = pickedFrame; if (!fr) return; sess = {frame:clone(fr), mode:fr.mode, filter:enabledFilters().includes(S.defaultFilter) ? S.defaultFilter : (enabledFilters()[0] || 'none'), shots:[], chosen:[], stickers:[]}; go('guide'); });
+
 /* ---------- 안내 ---------- */
 SC.guide = {
   async enter(){
+    if (!sess) { go('frames'); return; }
     const fr = sess.frame; await ensureImgs(fr);
     $('#guideImg').src = frameCanvas(fr, 0.4, {numbers:true}).toDataURL('image/jpeg', .85);
     const n = fr.slots.length, total = n + S.extraShots;
@@ -866,6 +934,7 @@ SC.guide = {
       ? ['바닥에 눕거나 모여 앉아서 화면(위)을 올려다봐요.', '얼굴이 화면 속 칸 안에 들어오게 서로 붙어요.', '숫자가 줄어들면 화면에 나오는 포즈를 따라 해요.']
       : ['화면 속 칸 안에 얼굴이 다 들어오게 서요.', '숫자가 줄어들면 화면에 나오는 포즈를 따라 해요.', '준비되면 "바로 촬영"을 눌러도 돼요.'];
     $('#guideTips').innerHTML = tips.map(t => `<li>${esc(t)}</li>`).join('');
+    Step.start(stepSec(), () => go('filter'));
   },
 };
 $('#toFilter').addEventListener('click', () => go('filter'));
@@ -880,16 +949,11 @@ SC.filter = {
       const b = el('button', {class:'fbtn', 'aria-pressed':String(sess.filter === k), onclick:() => { sess.filter = k; $$('#filterList .fbtn').forEach(x => x.setAttribute('aria-pressed', String(x === b))); }});
       b.appendChild(cv); b.appendChild(el('span', {}, PRESETS[k].name)); list.appendChild(b); this.thumbs.push([k, cv]);
     });
-    clearInterval(this.timer); const badge = $('#filterBadge'); badge.hidden = true;
-    if (S.filterTimerOn) {
-      let left = S.filterTimerSec; badge.hidden = false; badge.textContent = `${left}초 뒤 자동 시작`;
-      this.timer = setInterval(() => { left--; badge.textContent = `${left}초 뒤 자동 시작`; if (left <= 0) { clearInterval(this.timer); go('shoot'); } }, 1000);
-    }
+    Step.start(S.filterTimerOn ? S.filterTimerSec : 0, () => go('shoot'));
     const ok = await Cam.start();
     const nt = $('#camNotice'); nt.hidden = ok;
     if (!ok) nt.textContent = (Cam.err && Cam.err.name === 'NotAllowedError') ? '카메라 권한이 막혀 있어요. 주소창 옆 권한 설정에서 카메라를 허용해 주세요. 지금은 연습 화면으로 보여드려요.' : '이 화면에서는 카메라를 켤 수 없어서 연습 화면으로 보여드려요. 실제 촬영은 앱 주소로 직접 열어야 해요.';
   },
-  leave(){ clearInterval(this.timer); },
   tick(){
     if (!sess) return;
     const cv = $('#filterCanvas'); sizeCanvas(cv, 1.5); const x = cv.getContext('2d');
@@ -920,7 +984,7 @@ SC.shoot = {
     sess.shots = [];
     await Cam.start(); if (tk !== this.token) return;
     for (let k = 0; k < total; k++) {
-      $('#shotCounter').textContent = `${k}/${total}`;
+      $('#shotCounter').textContent = `${k} / ${total}`;
       const ph = $('#phrase'); if (phrases.length) { ph.hidden = false; ph.textContent = phrases[Math.floor(Math.random()*phrases.length)]; } else ph.hidden = true;
       let skipped = false;
       for (let t = S.shotTimer; t > 0; t--) {
@@ -935,7 +999,7 @@ SC.shoot = {
       shutterSound(); const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
       const clip = await Clip.stop();
       if (raw) sess.shots.push({raw, clip: skipped && !clip ? null : clip});
-      $('#shotCounter').textContent = `${k+1}/${total}`;
+      $('#shotCounter').textContent = `${k+1} / ${total}`;
       await sleep(900);
     }
     if (tk !== this.token) return;
@@ -954,6 +1018,7 @@ SC.pick = {
     if (sess.shots.length <= n) { sess.chosen = sess.shots.map((_, i) => i); go('deco'); return; }
     sess.chosen = [];
     $('#pickTitle').textContent = `마음에 드는 ${n}장을 골라 주세요`;
+    Step.start(stepSec(), () => { for (let i = 0; i < sess.shots.length && sess.chosen.length < n; i++) if (!sess.chosen.includes(i)) sess.chosen.push(i); go('deco'); });
     const g = $('#shotGrid'); g.innerHTML = '';
     sess.shots.forEach((s, i) => {
       const th = copyCanvas(filtered(s.raw, sess.filter), 320, Math.round(320*s.raw.height/s.raw.width));
@@ -983,6 +1048,7 @@ SC.deco = {
   enter(){
     if (!sess.chosen.length) sess.chosen = sess.shots.map((_, i) => i).slice(0, sess.frame.slots.length);
     Deco.sel = -1; this.tab('stk'); this.buildCats(); this.buildFilters(); this.draw();
+    Step.start(stepSec(), () => { Deco.sel = -1; go('final'); });
   },
   resize(){ this.draw(); },
   tab(t){ $('#ptStk').setAttribute('aria-pressed', String(t === 'stk')); $('#ptFil').setAttribute('aria-pressed', String(t === 'fil')); $('#stkCats').hidden = t !== 'stk'; $('#stkGrid').hidden = t !== 'stk'; $('#decoFilters').hidden = t !== 'fil'; },
@@ -1117,11 +1183,10 @@ SC.final = {
       msg.textContent = vu ? '핸드폰 카메라로 찍으면 사진과 영상을 받을 수 있어요' : '핸드폰 카메라로 찍으면 사진을 받을 수 있어요';
     } catch(e) { console.warn(e); if (tk === Final.token) msg.textContent = '인터넷 연결을 확인해 주세요. QR을 만들지 못했어요.'; }
   },
-  leave(){ Final.token++; clearInterval(Final.idle); },
+  leave(){ Final.token++; },
   copies(){ const max = Math.max(1, S.print.maxCopies); Final.copies = Math.min(Math.max(1, Final.copies), max); $('#cpNum').textContent = Final.copies;
     const per = sheetLayout(sess.frame).n; $('#cpMsg').textContent = per > 1 ? `용지 1장에 ${per}개씩 나와요. 잘라서 나눠 가져요.` : '용지 1장에 1개씩 나와요.'; },
-  resetIdle(){ clearInterval(Final.idle); Final.left = S.idleSec; const m = $('#idleMsg'); m.textContent = `${Final.left}초 뒤에 처음 화면으로 돌아가요`;
-    Final.idle = setInterval(() => { Final.left--; m.textContent = `${Final.left}초 뒤에 처음 화면으로 돌아가요`; if (Final.left <= 0) go('home'); }, 1000); },
+  resetIdle(){ Step.start(S.idleSec, () => go('home')); },
 };
 $('#final').addEventListener('pointerdown', () => { if (cur === 'final') SC.final.resetIdle(); });
 $('#cpMinus').addEventListener('click', () => { Final.copies--; SC.final.copies(); });
@@ -1267,6 +1332,10 @@ SC.admin = {
       Object.entries(PRESETS).forEach(([k, pr]) => fl.appendChild(el('button', {'aria-pressed':String(S.filters.includes(k)), onclick:() => { if (S.filters.includes(k)) { if (S.filters.length > 1) S.filters = S.filters.filter(x => x !== k); } else S.filters = Object.keys(PRESETS).filter(x => x === k || S.filters.includes(x)); save(); this.render(); }}, pr.name)));
       const df = el('select', {class:'f', 'aria-label':'처음 골라져 있는 필터'}); enabledFilters().forEach(k => { const o = el('option', {value:k}, PRESETS[k].name); if (k === S.defaultFilter) o.selected = true; df.appendChild(o); });
       df.addEventListener('change', () => { S.defaultFilter = df.value; save(); });
+      p.appendChild(grp('단계별 남은 시간',
+        tog('프레임, 안내, 사진 선택, 꾸미기 화면에 시간 제한 켜기', () => S.stepTimerOn, v => { S.stepTimerOn = v; }),
+        num('단계마다 주는 시간 (초)', () => S.stepTimerSec, v => S.stepTimerSec = v, 15, 300),
+        '<span class="small">화면 오른쪽 위에 남은 시간이 보이고, 시간이 다 되면 다음 단계로 넘어가요. 프레임 화면에서 아무것도 안 고르고 시간이 끝나면 처음 화면으로 돌아가요.</span>'));
       p.appendChild(grp('필터 고르기',
         tog('필터 고르는 시간 제한 켜기', () => S.filterTimerOn, v => { S.filterTimerOn = v; }),
         num('시간 제한 (초)', () => S.filterTimerSec, v => S.filterTimerSec = v, 5, 120),
