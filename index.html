@@ -79,6 +79,8 @@ button{cursor:pointer}
 .fbtn canvas{width:118px;height:118px;border-radius:10px;display:block;background:#ddd}
 .fbtn span{font-family:var(--f-round);font-size:17px}
 .fbtn[aria-pressed="true"]{border-color:var(--ink);background:var(--paper)}
+#decoFilters{flex-wrap:wrap;justify-content:flex-start;overflow:auto}
+#decoFilters .fbtn canvas{width:104px;height:104px}
 
 /* shoot */
 #shoot{background:var(--dark);color:#fff;padding:0}
@@ -289,7 +291,7 @@ input[type=range]{width:100%;accent-color:var(--ink)}
       <div class="ptabs"><button id="ptStk" aria-pressed="true">스티커</button><button id="ptFil" aria-pressed="false">필터</button></div>
       <div class="chips" id="stkCats"></div>
       <div class="stk-grid" id="stkGrid"></div>
-      <div class="chips" id="decoFilters" hidden></div>
+      <div class="filters" id="decoFilters" hidden></div>
       <div class="row"><button class="btn" id="stkUndo">하나 지우기</button><button class="btn" id="stkClear">모두 지우기</button><span class="small">붙인 스티커는 끌어서 옮기고, 모서리 손잡이로 크기와 방향을 바꿔요.</span></div>
     </div>
   </div>
@@ -522,7 +524,7 @@ function render(source, sw, sh, outW, outH, crop, mirror, rot, f, reuse = false)
   gl.uniform1f(U.uMirror, mirror ? 1 : 0); gl.uniform1f(U.uRot, rot);
   const srcPerOut = crop.w*sw / (rot%2 ? outH : outW);
   gl.uniform1f(U.uRad, Math.max(outW, outH)*0.0065*srcPerOut);
-  for (const k of ['smooth','bright','contrast','sat','warm','pink','glow','fade','bw']) gl.uniform1f(U['u'+k[0].toUpperCase()+k.slice(1)], f[k] || 0);
+  for (const k of ['smooth','bright','contrast','sat','warm','pink','glow','fade','bw']) gl.uniform1f(U[k === 'bw' ? 'uBW' : 'u'+k[0].toUpperCase()+k.slice(1)], f[k] || 0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   return glc;
 }
@@ -993,7 +995,14 @@ SC.deco = {
   },
   buildFilters(){
     const c = $('#decoFilters'); c.innerHTML = '';
-    enabledFilters().forEach(k => c.appendChild(el('button', {class:'chip', 'aria-pressed':String(k === sess.filter), onclick:() => { sess.filter = k; this.buildFilters(); this.draw(); }}, PRESETS[k].name)));
+    // 고른 첫 사진에 필터마다 입혀서 작은 미리보기로 보여줌
+    const shot = sess.shots[sess.chosen[0]] || sess.shots[0];
+    enabledFilters().forEach(k => {
+      const b = el('button', {class:'fbtn', 'aria-pressed':String(k === sess.filter), onclick:() => { sess.filter = k; $$('#decoFilters .fbtn').forEach(x => x.setAttribute('aria-pressed', String(x === b))); this.draw(); }});
+      const cv = el('canvas', {width:236, height:236});
+      if (shot) { const f = filtered(shot.raw, k); const m = Math.min(f.width, f.height); cv.getContext('2d').drawImage(f, (f.width - m)/2, (f.height - m)/2, m, m, 0, 0, 236, 236); }
+      b.appendChild(cv); b.appendChild(el('span', {}, PRESETS[k].name)); c.appendChild(b);
+    });
   },
   add(id){
     const fr = sess.frame, W = fr.Wmm*MM, H = fr.Hmm*MM;
