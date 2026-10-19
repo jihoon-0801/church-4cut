@@ -304,6 +304,11 @@ input[type=range]{width:100%;accent-color:var(--ink)}
 .ed-stage{position:relative;flex:1;min-height:300px;border-radius:12px;background:#f3f2f6 radial-gradient(#d6d3de 1px,transparent 1.2px) 0 0/18px 18px}
 .ed-stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
 .ed-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;flex-wrap:wrap}
+.ed-zoom{display:flex;align-items:center;border:1px solid var(--line);border-radius:99px;overflow:hidden;margin-left:auto}
+.ed-zoom button{border:0;background:var(--paper);padding:7px 14px;font-size:16px;min-width:44px}
+.ed-zoom #edZoom{font-size:14px;font-family:var(--f-en);min-width:64px}
+.ed-cards.bsize{grid-template-columns:repeat(3,1fr)}
+.ed-cards.brush .art,.ed-cards.brush svg{width:26px;height:26px}
 .ed-view{display:flex;background:var(--soft);border-radius:99px;padding:3px}
 .ed-view button{border:0;background:transparent;border-radius:99px;padding:7px 14px;font-size:14px;color:#555}
 .ed-view button[aria-pressed="true"]{background:var(--ink);color:#fff}
@@ -496,7 +501,7 @@ input[type=range]{width:100%;accent-color:var(--ink)}
     <div class="ed-center">
       <div class="ed-head"><b>미리보기</b><span class="tag" id="edSize"></span></div>
       <div class="ed-stage"><canvas id="edCanvas"></canvas></div>
-      <div class="ed-foot"><p class="small" id="edHint"></p><div class="ed-view" id="edView" aria-label="보기"></div></div>
+      <div class="ed-foot"><p class="small" id="edHint"></p><div class="ed-zoom"><button type="button" id="edZoomOut" aria-label="축소">−</button><button type="button" id="edZoom" title="화면에 맞추기">100%</button><button type="button" id="edZoomIn" aria-label="확대">+</button></div><div class="ed-view" id="edView" aria-label="보기"></div></div>
     </div>
     <aside class="ed-right" id="edProps"></aside>
   </div>
@@ -755,7 +760,7 @@ function renderFrame(ctx, fr, o = {}){
     if (p) drawCover(ctx, p, r); else placeholder(ctx, r, o.numbers ? i : null, fr.bg);
     ctx.restore();
   });
-  const ov = imgReady(fr.overlay); if (ov) ctx.drawImage(ov, 0, 0, W, H);
+  const ov = o.overlay || imgReady(fr.overlay); if (ov) ctx.drawImage(ov, 0, 0, W, H);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const t of fr.texts) { const s = resolveText(t.text); if (!s) continue; let size = t.size; ctx.font = fontStr(t, size); const mw = W*0.94, tw = ctx.measureText(s).width; if (tw > mw) { size *= mw/tw; ctx.font = fontStr(t, size); } ctx.fillStyle = t.color; ctx.fillText(s, t.x, t.y); }
   (o.stickers || []).forEach(s => drawSticker(ctx, s));
@@ -1582,11 +1587,11 @@ function samplePhoto(i){
 const edSnap = fr => ({...fr, slots:fr.slots.map(s => ({...s})), texts:fr.texts.map(t => ({...t}))});
 const edSame = (a, b) => { const k = o => JSON.stringify({...o, overlay:null, bgImg:null}); return a.overlay === b.overlay && a.bgImg === b.bgImg && k(a) === k(b); };
 
-const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'num', punch:false, hist:[], hi:0, isNew:false,
+const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'num', punch:false, hist:[], hi:0, isNew:false, brush:null, bsize:24, zoom:1, pan:{x:0, y:0}, cursor:null, ovCv:null, ovSrc:null,
   async open(id){ const f = FRAMES.find(x => x.id === id); this.begin(clone(f), false, 'slots'); },
   create(){ const f = frameStrip('새 프레임', 'front', '#ffffff', 'round', '#1d1a22', '{church}'); this.begin(f, true, 'start'); },
   async begin(fr, isNew, tab){
-    this.fr = fr; this.isNew = isNew; this.tab = tab; this.sel = null; this.punch = false; this.confirmDel = false; this.confirmClose = false;
+    this.fr = fr; this.isNew = isNew; this.tab = tab; this.sel = null; this.punch = false; this.brush = null; this.zoom = 1; this.pan = {x:0, y:0}; this.ovCv = null; this.confirmDel = false; this.confirmClose = false;
     this.hist = [edSnap(fr)]; this.hi = 0; go('editor'); await ensureImgs(fr); this.all();
   },
   W(){ return this.fr.Wmm*MM; }, H(){ return this.fr.Hmm*MM; },
@@ -1601,7 +1606,8 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
     $('#edUndo').disabled = this.hi <= 0; $('#edRedo').disabled = this.hi >= this.hist.length - 1;
     const fr = this.fr, per = sheetLayout(fr).n;
     $('#edSize').textContent = `${fr.Wmm}×${fr.Hmm}mm · 그림 ${Math.round(fr.Wmm*12)}×${Math.round(fr.Hmm*12)}px`;
-    $('#edHint').textContent = this.punch ? '그림에서 사진이 들어갈 칸을 하나씩 눌러 주세요' : '칸이나 글자를 누르면 오른쪽에서 고칠 수 있어요. 끌어서 옮겨요.';
+    $('#edHint').textContent = this.punch ? '그림에서 사진이 들어갈 칸을 하나씩 눌러 주세요' : this.brush ? (this.brush === 'erase' ? '지울 곳을 문질러요. 지운 곳에는 사진이 보여요' : '되살릴 곳을 문질러요') + (this.zoom > 1 ? ' · 두 손가락이나 마우스 휠로 화면을 옮겨요' : ' · 작은 부분은 + 로 확대해요') : '칸이나 글자를 누르면 오른쪽에서 고칠 수 있어요. 끌어서 옮겨요.';
+    $('#edZoom').textContent = Math.round(this.zoom*100) + '%';
     $('#edView').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === this.vmode)));
     void per;
   },
@@ -1612,10 +1618,14 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
   draw(){
     if (cur !== 'editor' || !this.fr) return;
     const cv = $('#edCanvas'); sizeCanvas(cv); const x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height);
-    const v = this.view = fitView(cv, this.fr, .04); x.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
+    const v = this.view = fitView(cv, this.fr, .04);
+    if (this.zoom > 1) { const s2 = v.s*this.zoom, cx = this.W()/2 + this.pan.x, cy = this.H()/2 + this.pan.y; v.s = s2; v.ox = cv.width/2 - cx*s2; v.oy = cv.height/2 - cy*s2; }
+    x.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
     x.save(); x.shadowColor = 'rgba(30,20,50,.18)'; x.shadowBlur = 24/v.s*v.s; x.shadowOffsetY = 6; x.fillStyle = '#fff'; x.fillRect(0, 0, this.W(), this.H()); x.restore();
     const sample = this.vmode !== 'num';
-    renderFrame(x, this.fr, sample ? {photos:this.fr.slots.map((_, i) => samplePhoto(i))} : {numbers:true});
+    const live = this.ovCv && this.ovSrc === this.fr.overlay ? this.ovCv : null;
+    renderFrame(x, this.fr, sample ? {photos:this.fr.slots.map((_, i) => samplePhoto(i)), overlay:live} : {numbers:true, overlay:live});
+    if (this.brush) { if (this.cursor) { x.lineWidth = 2/v.s; x.strokeStyle = '#ff3b6b'; x.beginPath(); x.arc(this.cursor.x, this.cursor.y, this.bsize, 0, 7); x.stroke(); x.strokeStyle = '#fff'; x.lineWidth = 1/v.s; x.beginPath(); x.arc(this.cursor.x, this.cursor.y, this.bsize + 2/v.s, 0, 7); x.stroke(); } x.setTransform(1, 0, 0, 1, 0, 0); return; }
     x.lineWidth = 2/v.s;
     this.fr.slots.forEach((r, i) => { const on = this.sel && this.sel.t === 'slot' && this.sel.i === i; if (!on && this.vmode === 'final') return;
       x.setLineDash(on ? [] : [8/v.s, 6/v.s]); x.strokeStyle = on ? '#ff3b6b' : 'rgba(30,20,50,.45)'; x.strokeRect(r.x, r.y, r.w, r.h);
@@ -1639,7 +1649,7 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
   sec(title, ...kids){ const s = el('div', {class:'ed-sec'}); if (title) s.appendChild(el('h4', {}, esc(title))); kids.flat().forEach(k => k && s.appendChild(typeof k === 'string' ? el('p', {class:'small'}, k) : k)); return s; },
   shapeArt(k){ const m = {rect:'<rect x="7" y="4" width="10" height="16"/>', round:'<rect x="7" y="4" width="10" height="16" rx="3"/>', oval:'<ellipse cx="12" cy="12" rx="5.5" ry="8"/>', circle:'<circle cx="12" cy="12" r="6"/>', arch:'<path d="M7 20V10a5 5 0 0 1 10 0v10z"/>', heart:'<path d="M12 19s-7-4.4-7-9.2A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 7 1.8C19 14.6 12 19 12 19z"/>'}[k]; return `<svg viewBox="0 0 24 24" class="art">${m.replace(/\/>/g, ' fill="#3a3540"/>').replace('stroke', 'stroke')}</svg>`; },
   async loadDesign(f){
-    const fr = this.fr; const fim = await fileToImage(f); fr.overlay = scaledDataURL(fim, 2400); await ensureImgs(fr);
+    const fr = this.fr; const fim = await fileToImage(f); fr.overlay = fr.overlayOrig = scaledDataURL(fim, 2400); await ensureImgs(fr); this.brush = null;
     const [iw, ih] = dims(fim), ra = iw/ih;
     if (Math.abs(ra/(fr.Wmm/fr.Hmm) - 1) > 0.03) {   // 그림 비율이 프레임과 다르면 크기를 그림에 맞춰요 (그림이 찌그러지지 않게)
       let H = 148, W = Math.round(H*ra*10)/10; if (W > 100) { W = 100; H = Math.round(W/ra*10)/10; }
@@ -1659,7 +1669,7 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
       const a = this.sec('방법 1 · 내 디자인 올리기', '미리캔버스, 캔바에서 만든 그림을 올리면 하얀 칸을 찾아서 사진 칸으로 바꿔요. 칸 안에 걸친 캐릭터는 사진 위에 얹혀요.');
       a.appendChild(el('div', {class:'ed-size'}, '<div><b>세로 4컷</b><span>600×1776px</span><small>한 장에 2개 인쇄</small></div><div><b>한 장</b><span>1200×1776px</span><small>한 장에 1개 인쇄</small></div>'));
       const up = filePick(fr.overlay ? '다른 그림으로 바꾸기' : '그림 올리기', 'image/*', f => this.loadDesign(f)); up.className = 'btn dark ed-wide'; a.appendChild(up);
-      if (fr.overlay) { const im = el('img', {src:fr.overlay, alt:'올린 디자인', class:'ed-thumb'}); a.insertBefore(im, up); a.appendChild(btn('올린 그림 빼기', () => { fr.overlay = null; this.change(); }, 'btn ed-wide')); }
+      if (fr.overlay) { const im = el('img', {src:fr.overlay, alt:'올린 디자인', class:'ed-thumb'}); a.insertBefore(im, up); a.appendChild(btn('올린 그림 빼기', () => { fr.overlay = fr.overlayOrig = null; this.brush = null; this.change(); }, 'btn ed-wide')); }
       T.appendChild(a);
       T.appendChild(this.sec('방법 2 · 여기서 직접 꾸미기', '칸 배치를 고른 다음 글자와 배경으로 꾸며요.',
         this.cards(ED_LAYOUTS.map(([k, n, sub, mkf]) => { const t = mkf(); const W = t.Wmm*12, H = t.Hmm*12, sc = 64/H; const art = `<svg viewBox="0 0 ${W} ${H}" class="lay" style="height:64px;width:${W*sc}px"><rect width="${W}" height="${H}" fill="#fff" stroke="#ccc" stroke-width="${1/sc}"/>${t.slots.map(s => `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="${Math.min(s.w, s.h)*.06}" fill="#d9d2e4"/>`).join('')}</svg>`; return [k, n, sub, art]; }), () => this.layoutKey(), k => this.applyLayout(k), 'lays')));
@@ -1677,6 +1687,11 @@ const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'nu
         r.appendChild(btn('하얀 칸 다시 찾기', async () => { const p = await punchWhite(fr.overlay); if (p) { fr.overlay = p.url; await ensureImgs(fr); } const s = await detectHoles(fr); if (s.length) { fr.slots = s.map(o => ({...o, shape:fr.slots[0] ? fr.slots[0].shape : 'rect'})); this.sel = null; toast(`사진 칸 ${s.length}개를 찾았어요`); } else toast('하얀 칸을 찾지 못했어요'); this.change(); }));
         r.appendChild(btn(this.punch ? '누르기 끝내기' : '눌러서 칸 뚫기', () => { this.punch = !this.punch; this.change(); }, this.punch ? 'btn dark' : 'btn'));
         T.appendChild(this.sec('올린 디자인에서 칸 찾기', r, '자동으로 못 찾은 칸이 있으면 "눌러서 칸 뚫기"를 켜고 미리보기에서 그 칸을 눌러요. 배경과 칸이 테두리 없이 같은 흰색이면 구분할 수 없어요.'));
+        const bt = this.cards([['erase','지우개','흰 부분 지우기', edIcon('<path d="M4 16l9-9 6 6-7 7H7z"/><path d="M11 20h9"/>')], ['restore','되살리기','지운 곳 돌리기', edIcon('<path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v4h4"/>')]], () => this.brush, k => { this.brush = this.brush === k ? null : k; this.punch = false; this.sel = null; if (this.brush && this.vmode === 'num') this.vmode = 'sample'; this.change(); }, 'brush');
+        const bs = this.cards([[10,'가늘게'],[24,'보통'],[50,'굵게']], () => this.bsize, k => { this.bsize = k; this.tool(); }, 'bsize');
+        const sec = this.sec('세밀하게 고치기', bt, this.brush ? bs : null, '남은 흰 부분은 지우개로 문지르고, 잘못 지운 곳은 되살리기로 문질러요. 작은 부분은 미리보기 아래 + 로 확대해요.');
+        if (!fr.overlayOrig) sec.appendChild(el('p', {class:'small'}, '예전에 올린 그림이라 되살리기는 그림을 다시 올린 뒤에 쓸 수 있어요.'));
+        T.appendChild(sec);
       }
     }
     if (this.tab === 'text') {
@@ -1783,6 +1798,9 @@ $('#edCancel').addEventListener('click', () => {
   go('admin');
 });
 $('#edUndo').addEventListener('click', () => Editor.undoTo(Editor.hi - 1));
+$('#edZoomIn').addEventListener('click', () => Editor.zoomBy(1.5));
+$('#edZoomOut').addEventListener('click', () => Editor.zoomBy(1/1.5));
+$('#edZoom').addEventListener('click', () => { Editor.zoom = 1; Editor.pan = {x:0, y:0}; Editor.top(); Editor.draw(); });
 $('#edRedo').addEventListener('click', () => Editor.undoTo(Editor.hi + 1));
 $('#edName').addEventListener('input', e => { Editor.fr.name = e.target.value; Editor.change(false); });
 (() => { const v = $('#edView'); [['num','칸 번호'],['sample','샘플 사진'],['final','완성 모습']].forEach(([k, n]) => v.appendChild(el('button', {type:'button', 'data-v':k, onclick:() => { Editor.vmode = k; Editor.top(); Editor.draw(); }}, n))); })();
@@ -1796,15 +1814,38 @@ SC.editor = { resize(){ Editor.draw(); } };
 (() => {
   const cv = $('#edCanvas');
   const toF = e => { const b = cv.getBoundingClientRect(), v = Editor.view; const px = (e.clientX - b.left)*cv.width/b.width, py = (e.clientY - b.top)*cv.height/b.height; return {x:(px - v.ox)/v.s, y:(py - v.oy)/v.s}; };
-  cv.addEventListener('pointerdown', e => {
-    if (!Editor.fr) return; cv.setPointerCapture(e.pointerId); const p = toF(e);
+  const ptrs = new Map(); let gesture = null, stroke = null;
+  const prepOv = async () => { const fr = Editor.fr; if (Editor.ovCv && Editor.ovSrc === fr.overlay) return true; const im = await getImg(fr.overlay).p; if (!im) return false;
+    const [w, h] = dims(im); const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(im, 0, 0); Editor.ovCv = c; Editor.ovSrc = fr.overlay;
+    Editor.origIm = fr.overlayOrig ? await getImg(fr.overlayOrig).p : null; return true; };
+  const dab = (p0, p1) => { const c = Editor.ovCv, x = c.getContext('2d'), k = c.width/Editor.W(), rad = Editor.bsize*k;
+    const n = Math.max(1, Math.ceil(Math.hypot(p1.x - p0.x, p1.y - p0.y)*k/(rad*0.35)));
+    for (let i = 1; i <= n; i++) { const px = (p0.x + (p1.x - p0.x)*i/n)*k, py = (p0.y + (p1.y - p0.y)*i/n)*k;
+      x.save(); x.beginPath(); x.arc(px, py, rad, 0, Math.PI*2);
+      if (Editor.brush === 'erase') { x.globalCompositeOperation = 'destination-out'; x.fill(); }
+      else if (Editor.origIm) { x.clip(); x.clearRect(px - rad - 1, py - rad - 1, rad*2 + 2, rad*2 + 2); x.drawImage(Editor.origIm, 0, 0, c.width, c.height); }
+      x.restore(); } };
+  const endStroke = () => { if (!stroke) return; stroke = null; const fr = Editor.fr; const url = Editor.ovCv.toDataURL('image/png'); fr.overlay = url; Editor.ovSrc = url; const im = new Image(); const pr = new Promise(r => { im.onload = () => r(im); im.onerror = () => r(null); }); im.src = url; IMG.set(url, {im, p:pr}); Editor.change(false); };
+  const zoomAt = (z, cx, cy) => { const v = Editor.view; if (!v) return; const before = {x:(cx - v.ox)/v.s, y:(cy - v.oy)/v.s};
+    Editor.zoom = Math.max(1, Math.min(6, z)); if (Editor.zoom === 1) Editor.pan = {x:0, y:0}; else { Editor.draw(); const v2 = Editor.view; const after = {x:(cx - v2.ox)/v2.s, y:(cy - v2.oy)/v2.s}; Editor.pan.x += before.x - after.x; Editor.pan.y += before.y - after.y; }
+    Editor.top(); Editor.draw(); };
+  Editor.zoomBy = f => { const cvv = $('#edCanvas'); zoomAt(Editor.zoom*f, cvv.width/2, cvv.height/2); };
+  const devXY = e => { const b = cv.getBoundingClientRect(); return {x:(e.clientX - b.left)*cv.width/b.width, y:(e.clientY - b.top)*cv.height/b.height}; };
+  cv.addEventListener('wheel', e => { if (!Editor.fr) return; e.preventDefault(); const d = devXY(e);
+    if (e.ctrlKey || e.metaKey) zoomAt(Editor.zoom*Math.exp(-e.deltaY*0.0025), d.x, d.y);
+    else if (Editor.zoom > 1) { const v = Editor.view; Editor.pan.x += (e.shiftKey ? e.deltaY : e.deltaX)/v.s; Editor.pan.y += (e.shiftKey ? 0 : e.deltaY)/v.s; Editor.draw(); } }, {passive:false});
+  cv.addEventListener('pointerleave', () => { if (Editor.brush) { Editor.cursor = null; Editor.draw(); } });
+  cv.addEventListener('pointerdown', async e => {
+    if (!Editor.fr) return; cv.setPointerCapture(e.pointerId); const p = toF(e); ptrs.set(e.pointerId, devXY(e));
+    if (ptrs.size === 2) { if (stroke) endStroke(); Editor.drag = null; const [a, b] = [...ptrs.values()]; gesture = {d0:Math.hypot(b.x - a.x, b.y - a.y), z0:Editor.zoom, m0:{x:(a.x + b.x)/2, y:(a.y + b.y)/2}}; return; }
+    if (Editor.brush && Editor.fr.overlay) { if (!(await prepOv())) return; if (Editor.brush === 'restore' && !Editor.origIm) { toast('되살리려면 그림을 다시 올려 주세요'); return; } stroke = {last:p}; Editor.cursor = p; dab(p, p); Editor.draw(); return; }
     if (Editor.punch && Editor.fr.overlay) { const fr = Editor.fr; (async () => {
       const r = await punchAt(fr.overlay, p.x/Editor.W(), p.y/Editor.H());
       if (!r || !r.url) { toast(r && r.tooBig ? '그림 전체가 같은 색이라 뚫을 수 없어요. 칸에 테두리를 넣거나 다른 색으로 칠해 주세요' : '이미 투명한 곳이에요', 4500); return; }
       fr.overlay = r.url; await ensureImgs(fr); const s = await detectHoles(fr); if (s.length) { fr.slots = s.map(o => ({...o, shape:fr.slots[0] ? fr.slots[0].shape : 'rect'})); Editor.sel = null; }
       toast(`칸을 뚫었어요 (지금 ${s.length}칸)`); Editor.change(); })(); return; }
     const h = Editor.hit(p);
-    if (!h) { if (Editor.sel) { Editor.sel = null; Editor.change(); } Editor.drag = null; return; }
+    if (!h) { if (Editor.sel) { Editor.sel = null; Editor.change(); } Editor.drag = Editor.zoom > 1 ? {mode:'pan', d0:devXY(e), pan0:{...Editor.pan}} : null; return; }
     const changed = !Editor.sel || Editor.sel.t !== h.t || Editor.sel.i !== h.i;
     Editor.sel = {t:h.t, i:h.i};
     if (changed && h.t === 'slot' && Editor.tab !== 'slots') { Editor.tab = 'slots'; Editor.rail(); }
@@ -1814,13 +1855,19 @@ SC.editor = { resize(){ Editor.draw(); } };
     if (changed) { Editor.tool(); Editor.props(); } Editor.draw();
   });
   cv.addEventListener('pointermove', e => {
+    if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, devXY(e));
+    if (gesture && ptrs.size >= 2) { const [a, b] = [...ptrs.values()]; const m = {x:(a.x + b.x)/2, y:(a.y + b.y)/2}; const v = Editor.view;
+      Editor.pan.x -= (m.x - gesture.m0.x)/v.s; Editor.pan.y -= (m.y - gesture.m0.y)/v.s; gesture.m0 = m; zoomAt(gesture.z0*Math.hypot(b.x - a.x, b.y - a.y)/gesture.d0, m.x, m.y); return; }
+    if (Editor.brush) { const p = toF(e); Editor.cursor = p; if (stroke) { dab(stroke.last, p); stroke.last = p; } Editor.draw(); return; }
+    if (Editor.drag && Editor.drag.mode === 'pan') { const d = Editor.drag, q = devXY(e), v = Editor.view; Editor.pan.x = d.pan0.x - (q.x - d.d0.x)/v.s; Editor.pan.y = d.pan0.y - (q.y - d.d0.y)/v.s; Editor.draw(); return; }
     const d = Editor.drag; if (!d || !Editor.sel) return; const p = toF(e); const dx = p.x - d.p0.x, dy = p.y - d.p0.y;
     const o = Editor.sel.t === 'slot' ? Editor.fr.slots[Editor.sel.i] : Editor.fr.texts[Editor.sel.i]; if (!o) return;
     if (d.mode === 'size') { o.w = Math.max(5*MM, d.o0.w + dx); o.h = Math.max(5*MM, d.o0.h + dy); }
     else { o.x = Math.round(d.o0.x + dx); o.y = Math.round(d.o0.y + dy); }
     Editor.draw();
   });
-  const up = () => { if (Editor.drag) { Editor.drag = null; Editor.change(false); if (Editor.sel && Editor.sel.t === 'slot') Editor.props(); } };
+  const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) gesture = null; if (stroke) { endStroke(); return; }
+    if (Editor.drag) { const pan = Editor.drag.mode === 'pan'; Editor.drag = null; if (!pan) { Editor.change(false); if (Editor.sel && Editor.sel.t === 'slot') Editor.props(); } } };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 })();
 // 덮는 PNG에서 투명한 구멍 찾기
@@ -1831,18 +1878,30 @@ async function punchWhite(src){
   const [w, h] = dims(im); const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
   const d = x.getImageData(0, 0, w, h), a = d.data, N = w*h;
   const wm = new Uint8Array(N); for (let i = 0; i < N; i++) wm[i] = a[i*4+3] > 200 && a[i*4] >= 234 && a[i*4+1] >= 234 && a[i*4+2] >= 234 ? 1 : 0;
-  const r = Math.max(3, Math.round(Math.min(w, h)*0.006));
+  const r = Math.max(3, Math.round(Math.min(w, h)*0.006)), r2 = 2;
   // 정사각형으로 깎기 (가로, 세로 따로)
-  const erode = (src_, horiz) => { const o = new Uint8Array(N);
+  const erode = (src_, horiz, rad) => { const o = new Uint8Array(N);
     if (horiz) for (let y = 0; y < h; y++) { let run = 0; const row = y*w; const L = new Int32Array(w);
       for (let x0 = 0; x0 < w; x0++) { run = src_[row+x0] ? run + 1 : 0; L[x0] = run; }
-      for (let x0 = 0; x0 < w; x0++) { const xe = x0 + r; if (xe < w && L[xe] >= 2*r + 1) o[row+x0] = 1; } }
+      for (let x0 = 0; x0 < w; x0++) { const xe = x0 + rad; if (xe < w && L[xe] >= 2*rad + 1) o[row+x0] = 1; } }
     else for (let x0 = 0; x0 < w; x0++) { let run = 0; const L = new Int32Array(h);
       for (let y = 0; y < h; y++) { run = src_[y*w+x0] ? run + 1 : 0; L[y] = run; }
-      for (let y = 0; y < h; y++) { const ye = y + r; if (ye < h && L[ye] >= 2*r + 1) o[y*w+x0] = 1; } }
+      for (let y = 0; y < h; y++) { const ye = y + rad; if (ye < h && L[ye] >= 2*rad + 1) o[y*w+x0] = 1; } }
     return o; };
-  const em = erode(erode(wm, true), false);
-  const lab = new Uint8Array(N), st = new Int32Array(N), kill = new Uint8Array(N); let found = 0;
+  const em = erode(erode(wm, true, r), false, r), em2 = erode(erode(wm, true, r2), false, r2);
+  const lab = new Uint8Array(N), lab2 = new Uint8Array(N), st = new Int32Array(N), kill = new Uint8Array(N); let found = 0;
+  // 덩어리를 rad만큼 다시 키워서 원래 흰 부분만 지울 곳으로 표시 (네모 X0..Y1 밖으로는 안 나가게)
+  const grow = (list, rad, X0, X1, Y0, Y1) => {
+    const BW = X1 - X0 + 1, BH = Y1 - Y0 + 1, cm = new Uint8Array(BW*BH);
+    for (const q of list) { const qx = q % w, qy = (q - qx)/w; if (qx >= X0 && qx <= X1 && qy >= Y0 && qy <= Y1) cm[(qy-Y0)*BW + qx-X0] = 1; }
+    const H1 = new Uint8Array(BW*BH);
+    for (let y = 0; y < BH; y++) { let last = -1e9; for (let x0 = 0; x0 < BW; x0++) { if (cm[y*BW+x0]) last = x0; if (x0 - last <= rad) H1[y*BW+x0] = 1; }
+      last = 1e9; for (let x0 = BW-1; x0 >= 0; x0--) { if (cm[y*BW+x0]) last = x0; if (last - x0 <= rad) H1[y*BW+x0] = 1; } }
+    for (let x0 = 0; x0 < BW; x0++) { let last = -1e9; const V = new Uint8Array(BH);
+      for (let y = 0; y < BH; y++) { if (H1[y*BW+x0]) last = y; if (y - last <= rad) V[y] = 1; }
+      last = 1e9; for (let y = BH-1; y >= 0; y--) { if (H1[y*BW+x0]) last = y; if (last - y <= rad) V[y] = 1; }
+      for (let y = 0; y < BH; y++) { const q = (y+Y0)*w + x0+X0; if (V[y] && wm[q]) kill[q] = 1; } }
+  };
   for (let i = 0; i < N; i++) {
     if (lab[i] || !em[i]) continue;
     let top = 0, cnt = 0, minx = w, miny = h, maxx = 0, maxy = 0; st[top++] = i; lab[i] = 1; const list = [];
@@ -1855,16 +1914,13 @@ async function punchWhite(src){
     const box = (maxx - minx + 1)*(maxy - miny + 1);
     if (!(cnt > N*0.008 && cnt < N*0.4 && cnt/box > 0.45)) continue;
     found++;
-    // 다시 키우기: 깎은 만큼(r) 안에 있는 원래 흰 부분, 칸 네모 밖으로는 안 나가게
-    const X0 = Math.max(0, minx - r), X1 = Math.min(w-1, maxx + r), Y0 = Math.max(0, miny - r), Y1 = Math.min(h-1, maxy + r), BW = X1 - X0 + 1, BH = Y1 - Y0 + 1;
-    const cm = new Uint8Array(BW*BH); for (const q of list) { const qx = q % w, qy = (q - qx)/w; cm[(qy-Y0)*BW + qx-X0] = 1; }
-    const H1 = new Uint8Array(BW*BH);
-    for (let y = 0; y < BH; y++) { let last = -1e9; for (let x0 = 0; x0 < BW; x0++) { if (cm[y*BW+x0]) last = x0; if (x0 - last <= r) H1[y*BW+x0] = 1; }
-      last = 1e9; for (let x0 = BW-1; x0 >= 0; x0--) { if (cm[y*BW+x0]) last = x0; if (last - x0 <= r) H1[y*BW+x0] = 1; } }
-    for (let x0 = 0; x0 < BW; x0++) { let last = -1e9; const V = new Uint8Array(BH);
-      for (let y = 0; y < BH; y++) { if (H1[y*BW+x0]) last = y; if (y - last <= r) V[y] = 1; }
-      last = 1e9; for (let y = BH-1; y >= 0; y--) { if (H1[y*BW+x0]) last = y; if (last - y <= r) V[y] = 1; }
-      for (let y = 0; y < BH; y++) { const q = (y+Y0)*w + x0+X0; if (V[y] && wm[q]) kill[q] = 1; } }
+    const X0 = Math.max(0, minx - r), X1 = Math.min(w-1, maxx + r), Y0 = Math.max(0, miny - r), Y1 = Math.min(h-1, maxy + r);
+    grow(list, r, X0, X1, Y0, Y1);
+    // 말풍선 속처럼 좁은 틈 너머의 흰 부분도: 덜 깎은 흰 지도(r2)로 칸 안에서만 한 번 더 이어서 찾아요
+    top = 0; const list2 = []; for (const q of list) if (em2[q] && !lab2[q]) { lab2[q] = 1; st[top++] = q; }
+    while (top) { const q = st[--top], qx = q % w, qy = (q - qx)/w; list2.push(q);
+      for (const n of [qx > X0 ? q-1 : -1, qx < X1 ? q+1 : -1, qy > Y0 ? q-w : -1, qy < Y1 ? q+w : -1]) if (n >= 0 && !lab2[n] && em2[n]) { lab2[n] = 1; st[top++] = n; } }
+    grow(list2, r2, X0, X1, Y0, Y1);
   }
   if (!found) return null;
   for (let i = 0; i < N; i++) if (kill[i]) a[i*4+3] = 0;
