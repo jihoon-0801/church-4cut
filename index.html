@@ -240,18 +240,111 @@ input[type=range]{width:100%;accent-color:var(--ink)}
 .help{font-size:14px;color:#444;background:var(--soft);border-radius:12px;padding:12px 14px}
 .help ol{margin:4px 0 0;padding-left:20px}
 
-/* editor */
-.ed-wrap{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px}
-.ed-stage{position:relative;min-height:300px;background:#e9e7ef;border-radius:16px}
-.ed-stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
-.ed-panel{overflow:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:30px}
 .minis{display:flex;gap:6px;flex-wrap:wrap}
 .minis button{border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:6px 12px;font-size:15px}
 .minis button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+/* editor: 왼쪽 도구(세로 탭 + 패널), 가운데 미리보기, 오른쪽 속성 */
+#editor{padding-top:max(12px,env(safe-area-inset-top,0px))}
+.ed-top{display:flex;align-items:center;gap:10px;padding:4px 0 12px;flex-wrap:wrap}
+.ed-top h2{margin:0 6px 0 4px;font-size:20px;font-weight:800;white-space:nowrap}
+.ed-top input{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:16px;background:var(--paper);min-width:0;width:min(280px,40vw)}
+.ed-top .sp{flex:1}
+.ed-ic{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--paper);display:grid;place-items:center}
+.ed-ic svg{width:20px;height:20px}
+.ed-ic:disabled{opacity:.35;cursor:default}
+.ed-wrap{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,360px) minmax(0,1fr) minmax(280px,330px);grid-template-areas:"left center right";gap:14px;padding-bottom:14px}
+.ed-left{grid-area:left;display:grid;grid-template-columns:74px minmax(0,1fr);gap:10px;min-height:0}
+.ed-rail{display:flex;flex-direction:column;gap:6px;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:8px 6px;overflow:auto}
+.ed-rail button{border:0;background:transparent;border-radius:14px;padding:10px 2px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:13px;font-weight:600;color:#555}
+.ed-rail svg{width:22px;height:22px}
+.ed-rail button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.ed-tool{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:16px;overflow:auto;display:flex;flex-direction:column;gap:18px;min-height:0}
+.ed-sec{display:flex;flex-direction:column;gap:10px}
+.ed-sec h4{margin:0;font-size:14px;color:var(--sub);font-weight:700;letter-spacing:.02em}
+.ed-steps{background:var(--soft);border-radius:14px;padding:12px 14px;font-size:14px;color:#444}
+.ed-steps ol{margin:6px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:2px}
+.ed-size{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ed-size div{border:1px solid var(--line);border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;font-size:13px}
+.ed-size span{font-family:var(--f-en);font-weight:600;font-size:15px}
+.ed-size small{color:var(--sub)}
+.ed-wide{width:100%;text-align:center}
+.ed-thumb{max-height:150px;max-width:100%;align-self:center;border-radius:8px;background:repeating-conic-gradient(#e8e8e8 0 25%,#fff 0 50%) 0 0/16px 16px;border:1px solid var(--line)}
+.ed-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ed-cards.shapes{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ed-cards button{border:1px solid var(--line);background:var(--paper);border-radius:14px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;min-height:56px}
+.ed-cards button b{font-size:14px;font-weight:700}
+.ed-cards button small{font-size:12px;color:var(--sub)}
+.ed-cards button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+.ed-cards button[aria-pressed="true"] small{color:#ccc}
+.ed-cards .art{width:44px;height:44px}
+.ed-cards.sm .art{width:30px;height:30px}
+.ed-cards.sm button{min-height:0;padding:6px}
+.ed-cards.sm b{font-size:12px}
+.ed-cards button[aria-pressed="true"] .art *{fill:#fff}
+.ed-cards .lay{display:block;margin-bottom:2px}
+.ed-chips{display:flex;flex-wrap:wrap;gap:6px}
+.ed-chips button{border:1px solid var(--line);background:var(--paper);border-radius:99px;padding:7px 14px;font-size:14px}
+.ed-chips button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ed-col{display:flex;flex-direction:column;gap:8px}
+.ed-col>.btn{width:100%;text-align:center}
+.ed-tbtn{border:1px solid var(--line);background:var(--paper);border-radius:14px;padding:12px 16px;text-align:left}
+.ed-deco{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ed-deco button{border:0;background:var(--soft);border-radius:14px;padding:14px 6px;font-size:22px;line-height:1.1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ed-sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(36px,1fr));gap:8px}
+.ed-sw button,.ed-more{aspect-ratio:1;border-radius:50%;border:1px solid rgba(0,0,0,.14);position:relative}
+.ed-sw button[aria-pressed="true"]{outline:3px solid var(--pop);outline-offset:2px}
+.ed-more{display:grid;place-items:center;font-size:20px;color:#555;background:conic-gradient(#ff8fab,#ffe08a,#9be7b4,#8fc7ff,#c9a3ff,#ff8fab);cursor:pointer;overflow:hidden}
+.ed-more input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.ed-fonts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ed-fonts button{border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:8px 6px;font-size:16px}
+.ed-fonts button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.ed-center{grid-area:center;display:flex;flex-direction:column;min-height:0;background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:12px}
+.ed-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px 10px}
+.ed-head b{font-size:16px}
+.ed-stage{position:relative;flex:1;min-height:300px;border-radius:12px;background:#f3f2f6 radial-gradient(#d6d3de 1px,transparent 1.2px) 0 0/18px 18px}
+.ed-stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.ed-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:10px;flex-wrap:wrap}
+.ed-view{display:flex;background:var(--soft);border-radius:99px;padding:3px}
+.ed-view button{border:0;background:transparent;border-radius:99px;padding:7px 14px;font-size:14px;color:#555}
+.ed-view button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.ed-right{grid-area:right;display:flex;flex-direction:column;gap:12px;overflow:auto;min-height:0}
+.ed-card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.ed-card h3{margin:0;font-size:17px;font-weight:800}
+.ed-card.empty{align-items:center;text-align:center;border-style:dashed;padding:26px 18px}
+.ed-card.empty .ic{width:52px;height:52px;border-radius:50%;background:var(--soft);display:grid;place-items:center}
+.ed-card.empty .ic svg{width:24px;height:24px}
+.ed-check{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.ed-check li{display:grid;grid-template-columns:22px 1fr;gap:6px;align-items:start}
+.ed-check li.ok{color:#2c6a45}
+.ed-check li.warn{color:#b4243f}
+.ed-check li span{color:#333}
+.ed-card .rng{grid-template-columns:60px 1fr 44px}
 .four{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .four label{font-size:12px;color:var(--sub);display:flex;flex-direction:column;gap:2px}
 .four input{border:1px solid var(--line);border-radius:8px;padding:6px;width:100%;font-size:14px}
-@media (max-width:860px){ .ed-wrap{grid-template-columns:1fr;grid-template-rows:55vh auto;overflow:auto} .ed-panel{overflow:visible} }
+/* 태블릿 가로·좁은 노트북: 세 칸을 조금씩 좁게 */
+@media (max-width:1300px){
+  .ed-wrap{grid-template-columns:286px minmax(0,1fr) 262px;gap:10px}
+  .ed-left{grid-template-columns:62px minmax(0,1fr);gap:8px}
+  .ed-rail button{font-size:12px}
+  .ed-tool,.ed-card{padding:12px}
+  .ed-cards.shapes{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .ed-card .rng{grid-template-columns:44px 1fr 36px}
+  .ed-sw{grid-template-columns:repeat(auto-fill,minmax(30px,1fr));gap:6px}
+  .ed-deco button{font-size:16px;padding:12px 4px}
+}
+/* 세로로 긴 화면: 위에서 아래로 */
+@media (max-width:999px){
+  #editor{overflow:auto}
+  .ed-top h2{display:none}
+  .ed-wrap{display:flex;flex-direction:column;flex:none;min-height:auto}
+  .ed-left{grid-template-columns:1fr;grid-template-rows:auto auto;order:2}
+  .ed-rail{flex-direction:row;justify-content:space-between;overflow:visible}
+  .ed-rail button{flex:1;padding:8px 2px}
+  .ed-center{order:1;height:62vh;flex:none}
+  .ed-right{order:3;max-height:none;overflow:visible}
+  .ed-tool{overflow:visible}
+}
 
 .toast{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:14px;padding:12px 18px;max-width:min(92vw,560px);text-align:center;z-index:40;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
@@ -389,10 +482,23 @@ input[type=range]{width:100%;accent-color:var(--ink)}
 
 <!-- 프레임 편집기 -->
 <section class="screen" id="editor" hidden>
-  <div class="top"><button class="btn" id="edCancel">닫기</button><h2 style="margin:0;font-size:20px">프레임 편집</h2><button class="btn dark" id="edSave">저장</button></div>
+  <div class="ed-top">
+    <button class="btn" id="edCancel">← 프레임 목록</button>
+    <h2>프레임 만들기</h2>
+    <input id="edName" type="text" aria-label="프레임 이름" placeholder="프레임 이름">
+    <span class="sp"></span>
+    <button class="ed-ic" id="edUndo" aria-label="되돌리기" title="되돌리기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12h-2"/></svg></button>
+    <button class="ed-ic" id="edRedo" aria-label="다시 하기" title="다시 하기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l5 5-5 5"/><path d="M20 12H10a6 6 0 0 0 0 12h2"/></svg></button>
+    <button class="btn dark" id="edSave">저장하기</button>
+  </div>
   <div class="ed-wrap">
-    <div class="ed-stage"><canvas id="edCanvas"></canvas></div>
-    <div class="ed-panel" id="edPanel"></div>
+    <aside class="ed-left"><nav class="ed-rail" id="edRail" aria-label="편집 도구"></nav><div class="ed-tool" id="edTool"></div></aside>
+    <div class="ed-center">
+      <div class="ed-head"><b>미리보기</b><span class="tag" id="edSize"></span></div>
+      <div class="ed-stage"><canvas id="edCanvas"></canvas></div>
+      <div class="ed-foot"><p class="small" id="edHint"></p><div class="ed-view" id="edView" aria-label="보기"></div></div>
+    </div>
+    <aside class="ed-right" id="edProps"></aside>
   </div>
 </section>
 
@@ -602,6 +708,8 @@ function slotPath(ctx, r, shape){
   const {x, y, w, h} = r;
   if (shape === 'round') { const k = Math.min(w, h)*0.08; if (ctx.roundRect) ctx.roundRect(x, y, w, h, k); else ctx.rect(x, y, w, h); }
   else if (shape === 'oval') ctx.ellipse(x+w/2, y+h/2, w/2, h/2, 0, 0, Math.PI*2);
+  else if (shape === 'circle') { const rr = Math.min(w, h)/2; ctx.arc(x+w/2, y+h/2, rr, 0, Math.PI*2); }
+  else if (shape === 'arch') { const rr = w/2; ctx.moveTo(x, y+h); ctx.lineTo(x, y+rr); ctx.arc(x+rr, y+rr, rr, Math.PI, 0); ctx.lineTo(x+w, y+h); ctx.closePath(); }
   else if (shape === 'heart') {
     const t = y + h*0.3;
     ctx.moveTo(x+w/2, t);
@@ -1339,7 +1447,7 @@ SC.admin = {
       }
       p.appendChild(grp('', el('div', {class:'row'}), list));
       const top = p.lastChild.firstChild;
-      top.appendChild(btn('+ 새 프레임 만들기', () => { const f = frameStrip('새 프레임', 'front', '#ffffff', 'round', '#1d1a22', '{church}'); FRAMES.push(f); save(); Editor.open(f.id); }, 'btn dark'));
+      top.appendChild(btn('+ 새 프레임 만들기', () => Editor.create(), 'btn dark'));
       top.appendChild(btn('기본 프레임 다시 넣기', () => { FRAMES.push(...defaultFrames()); save(); this.render(); }));
       p.appendChild(el('div', {class:'help'}, '<b>직접 만든 프레임 넣는 법</b><ol><li>캔바, 미리캔버스 등에서 프레임을 만들 때 사진이 들어갈 자리는 <b>하얀 네모</b>로 두거나 투명하게 뚫어요. 하얀 칸은 앱이 알아서 투명하게 뚫어요. 세로 4컷은 50×148mm(600×1776px), 한 장은 100×148mm(1200×1776px)이 딱 맞아요.</li><li>+ 새 프레임 만들기에서 크기를 고르고 <b>위에 덮는 그림</b>으로 그 그림을 올리면 사진 칸이 알아서 잡혀요. 칸 안에 걸친 캐릭터는 사진 위에 얹혀 나와요. 칸은 끌어서 옮기고 모서리로 크기를 바꿀 수 있어요.</li></ol>'));
     }
@@ -1430,100 +1538,260 @@ SC.admin = {
 };
 
 /* ================= 프레임 편집기 ================= */
-const Editor = { fr:null, sel:null, drag:null, view:null,
-  async open(id){ const f = FRAMES.find(x => x.id === id); this.fr = clone(f); this.sel = null; this.punch = false; go('editor'); await ensureImgs(this.fr); this.panel(); this.draw(); },
+// 프레임 편집기: 왼쪽 도구, 가운데 미리보기, 오른쪽 속성
+const ED_TABS = [
+  ['start', '시작', '<path d="M5 12l5 5 9-11"/>'],
+  ['slots', '사진칸', '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'],
+  ['text', '글자', '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>'],
+  ['bg', '배경', '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/>'],
+  ['set', '설정', '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>'],
+];
+const ED_SHAPES = [['rect','사각'],['round','둥근 사각'],['oval','타원'],['circle','원'],['arch','아치'],['heart','하트']];
+const ED_SWATCH = ['#ffffff','#f4f1ea','#fff3b8','#ffe0e9','#f6c6d2','#e6dcff','#d6ecff','#c4ead6','#ffd8b8','#d9d9d9','#8fb8de','#b48ad6','#ff8fab','#2f2a3a','#161418','#000000'];
+const ED_INK = ['#1d1a22','#ffffff','#ff3b6b','#e0457b','#7a1f3d','#5a2a3a','#1f3b57','#1f4a36','#8a5a2b','#6d4ec9'];
+const ED_DECO = [['HAPPY DAY','Black Han Sans','#ff5c8a',true],['Love you','Nanum Pen Script','#e0457b',false],['축복해요','Gaegu','#6d4ec9',true],['우리 함께','Jua','#1f3b57',false],['Thank you','Gowun Dodum','#8a5a2b',false],['{church}','Gaegu','#1d1a22',true]];
+const edIcon = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+// 레이아웃 (크기와 칸 위치를 한 번에)
+const ED_LAYOUTS = [
+  ['strip', '세로 4컷', '50×148mm · 한 장에 2개', () => frameStrip('', 'front', '#fff', 'round', '#000', '')],
+  ['grid', '2×2 네컷', '100×148mm', () => frameGrid('', 'front', '#fff', 'round', '#000', '')],
+  ['two', '2컷', '100×148mm', () => ({Wmm:100, Hmm:148, slots:[{x:60, y:60, w:1080, h:690, shape:'round'}, {x:60, y:790, w:1080, h:690, shape:'round'}], texts:[{text:'', x:600, y:1590, size:96}, {text:'', x:600, y:1700, size:40}]})],
+  ['one', '한 컷', '100×148mm', () => frameOne('', 'front', '#fff', 'round', '#000', '')],
+];
+// 샘플 사진 (그림으로 그린 사람)
+const SAMPLE = [];
+function samplePhoto(i){
+  if (SAMPLE[i]) return SAMPLE[i];
+  const pal = [['#ffd6e0','#ffeef3','#3b2a2a','#ffffff'],['#d6ecff','#eef7ff','#22252e','#ffe9a8'],['#e6dcff','#f5f0ff','#4a2f20','#c4ead6'],['#fff3b8','#fffbe6','#1e1e24','#ffc4d6'],['#c4ead6','#effaf4','#5a3a2a','#d6ecff'],['#ffd8b8','#fff3ea','#2a2020','#e6dcff']][i % 6];
+  SAMPLE[i] = mk(600, 800, (x, w, h) => {
+    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, pal[1]); g.addColorStop(1, pal[0]); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    const cx = w/2 + (i % 2 ? 40 : -30), hy = h*0.42;
+    x.fillStyle = pal[3]; x.beginPath(); x.ellipse(cx, h*1.02, 230, 230, 0, Math.PI, 0); x.fill();                 // 옷
+    x.fillStyle = '#f6d3bd'; x.fillRect(cx - 36, hy + 90, 72, 90);                                                    // 목
+    x.fillStyle = pal[2]; x.beginPath(); x.ellipse(cx, hy + 10, 150, 175, 0, 0, Math.PI*2); x.fill();                // 머리카락
+    if (i % 3 !== 1) x.fillRect(cx - 150, hy, 300, 230);
+    x.fillStyle = '#f9dcc8'; x.beginPath(); x.ellipse(cx, hy + 30, 112, 135, 0, 0, Math.PI*2); x.fill();               // 얼굴
+    x.fillStyle = pal[2]; x.beginPath(); x.ellipse(cx, hy - 80, 125, 70, 0, Math.PI, 0); x.fill();                   // 앞머리
+    x.fillStyle = '#2b2222'; [-42, 42].forEach(d => { x.beginPath(); if (i % 4 === 1 && d > 0) { x.lineWidth = 7; x.strokeStyle = '#2b2222'; x.moveTo(cx + d - 16, hy + 22); x.quadraticCurveTo(cx + d, hy + 10, cx + d + 16, hy + 22); x.stroke(); } else { x.ellipse(cx + d, hy + 20, 11, 15, 0, 0, Math.PI*2); x.fill(); } });
+    x.fillStyle = 'rgba(255,120,140,.35)'; [-66, 66].forEach(d => { x.beginPath(); x.ellipse(cx + d, hy + 62, 22, 13, 0, 0, Math.PI*2); x.fill(); });
+    x.strokeStyle = '#c0485a'; x.lineWidth = 7; x.lineCap = 'round'; x.beginPath(); x.arc(cx, hy + 70, 26, 0.15*Math.PI, 0.85*Math.PI); x.stroke();
+    if (i % 2 === 0) { x.fillStyle = '#f9dcc8'; x.beginPath(); x.ellipse(cx + 170, hy + 170, 38, 52, -0.3, 0, Math.PI*2); x.fill(); x.fillRect(cx + 155, hy + 70, 22, 80); x.fillRect(cx + 185, hy + 90, 22, 70); }  // 브이
+  });
+  return SAMPLE[i];
+}
+const edSnap = fr => ({...fr, slots:fr.slots.map(s => ({...s})), texts:fr.texts.map(t => ({...t}))});
+const edSame = (a, b) => { const k = o => JSON.stringify({...o, overlay:null, bgImg:null}); return a.overlay === b.overlay && a.bgImg === b.bgImg && k(a) === k(b); };
+
+const Editor = { fr:null, sel:null, drag:null, view:null, tab:'start', vmode:'num', punch:false, hist:[], hi:0, isNew:false,
+  async open(id){ const f = FRAMES.find(x => x.id === id); this.begin(clone(f), false, 'slots'); },
+  create(){ const f = frameStrip('새 프레임', 'front', '#ffffff', 'round', '#1d1a22', '{church}'); this.begin(f, true, 'start'); },
+  async begin(fr, isNew, tab){
+    this.fr = fr; this.isNew = isNew; this.tab = tab; this.sel = null; this.punch = false; this.confirmDel = false; this.confirmClose = false;
+    this.hist = [edSnap(fr)]; this.hi = 0; go('editor'); await ensureImgs(fr); this.all();
+  },
   W(){ return this.fr.Wmm*MM; }, H(){ return this.fr.Hmm*MM; },
+  // 바꾼 뒤에 부르기: 그리기 + 되돌리기 기록
+  change(panels = true){ if (panels) { this.tool(); this.props(); } this.top(); this.draw(); clearTimeout(this.ct); this.ct = setTimeout(() => this.commit(), 350); },
+  commit(){ const s = edSnap(this.fr); if (edSame(s, this.hist[this.hi])) return; this.hist = this.hist.slice(0, this.hi + 1); this.hist.push(s); if (this.hist.length > 60) this.hist.shift(); this.hi = this.hist.length - 1; this.top(); },
+  async undoTo(i){ if (i < 0 || i >= this.hist.length) return; clearTimeout(this.ct); this.commit(); this.hi = Math.max(0, Math.min(this.hist.length - 1, i)); const s = edSnap(this.hist[this.hi]); s.id = this.fr.id; this.fr = s; this.sel = null; await ensureImgs(this.fr); this.all(); },
+  dirty(){ return this.isNew || this.hi > 0 || !edSame(edSnap(this.fr), this.hist[0]); },
+  all(){ this.rail(); this.tool(); this.props(); this.top(); this.draw(); },
+  top(){
+    const n = $('#edName'); if (document.activeElement !== n) n.value = this.fr.name;
+    $('#edUndo').disabled = this.hi <= 0; $('#edRedo').disabled = this.hi >= this.hist.length - 1;
+    const fr = this.fr, per = sheetLayout(fr).n;
+    $('#edSize').textContent = `${fr.Wmm}×${fr.Hmm}mm · 그림 ${Math.round(fr.Wmm*12)}×${Math.round(fr.Hmm*12)}px`;
+    $('#edHint').textContent = this.punch ? '그림에서 사진이 들어갈 칸을 하나씩 눌러 주세요' : '칸이나 글자를 누르면 오른쪽에서 고칠 수 있어요. 끌어서 옮겨요.';
+    $('#edView').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === this.vmode)));
+    void per;
+  },
+  rail(){
+    const r = $('#edRail'); r.innerHTML = '';
+    ED_TABS.forEach(([k, n, ic]) => r.appendChild(el('button', {type:'button', 'aria-pressed':String(this.tab === k), onclick:() => { this.tab = k; this.rail(); this.tool(); }}, `${edIcon(ic)}<span>${n}</span>`)));
+  },
   draw(){
     if (cur !== 'editor' || !this.fr) return;
     const cv = $('#edCanvas'); sizeCanvas(cv); const x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height);
-    const v = this.view = fitView(cv, this.fr, .03); x.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
-    renderFrame(x, this.fr, {numbers:true});
+    const v = this.view = fitView(cv, this.fr, .04); x.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
+    x.save(); x.shadowColor = 'rgba(30,20,50,.18)'; x.shadowBlur = 24/v.s*v.s; x.shadowOffsetY = 6; x.fillStyle = '#fff'; x.fillRect(0, 0, this.W(), this.H()); x.restore();
+    const sample = this.vmode !== 'num';
+    renderFrame(x, this.fr, sample ? {photos:this.fr.slots.map((_, i) => samplePhoto(i))} : {numbers:true});
     x.lineWidth = 2/v.s;
-    this.fr.slots.forEach((r, i) => { const on = this.sel && this.sel.t === 'slot' && this.sel.i === i; x.setLineDash(on ? [] : [8/v.s, 6/v.s]); x.strokeStyle = on ? '#ff5c8a' : 'rgba(30,20,50,.55)'; x.strokeRect(r.x, r.y, r.w, r.h);
-      if (on) { x.fillStyle = '#ff5c8a'; x.fillRect(r.x + r.w - 14/v.s, r.y + r.h - 14/v.s, 28/v.s, 28/v.s); } });
+    this.fr.slots.forEach((r, i) => { const on = this.sel && this.sel.t === 'slot' && this.sel.i === i; if (!on && this.vmode === 'final') return;
+      x.setLineDash(on ? [] : [8/v.s, 6/v.s]); x.strokeStyle = on ? '#ff3b6b' : 'rgba(30,20,50,.45)'; x.strokeRect(r.x, r.y, r.w, r.h);
+      if (sample && !on) { x.fillStyle = 'rgba(17,17,17,.7)'; const m = 30/v.s; x.beginPath(); x.arc(r.x + m*0.9, r.y + m*0.9, m*0.6, 0, 7); x.fill(); x.fillStyle = '#fff'; x.font = `${m*0.75}px "Jua"`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(String(i+1), r.x + m*0.9, r.y + m*0.95); }
+      if (on) { x.fillStyle = '#ff3b6b'; x.beginPath(); x.arc(r.x + r.w, r.y + r.h, 13/v.s, 0, 7); x.fill(); x.fillStyle = '#fff'; x.beginPath(); x.arc(r.x + r.w, r.y + r.h, 5/v.s, 0, 7); x.fill(); } });
     x.setLineDash([]);
-    if (this.sel && this.sel.t === 'text') { const b = this.textBox(this.fr.texts[this.sel.i]); if (b) { x.strokeStyle = '#ff5c8a'; x.strokeRect(b.x, b.y, b.w, b.h); } }
+    if (this.sel && this.sel.t === 'text') { const b = this.textBox(this.fr.texts[this.sel.i]); if (b) { x.strokeStyle = '#ff3b6b'; x.strokeRect(b.x, b.y, b.w, b.h); } }
     x.setTransform(1, 0, 0, 1, 0, 0);
   },
-  textBox(t){ if (!t) return null; const x = $('#edCanvas').getContext('2d'); x.save(); x.font = fontStr(t); const w = x.measureText(resolveText(t.text) || ' ').width; x.restore(); return {x:t.x - w/2 - 8, y:t.y - t.size*0.65, w:w + 16, h:t.size*1.3}; },
+  textBox(t){ if (!t) return null; const x = $('#edCanvas').getContext('2d'); x.save(); x.font = fontStr(t); const w = Math.min(x.measureText(resolveText(t.text) || ' ').width, this.W()*0.94); x.restore(); return {x:t.x - w/2 - 8, y:t.y - t.size*0.65, w:w + 16, h:t.size*1.3}; },
   hit(p){
-    const v = this.view, hr = 26/v.s;
+    const v = this.view, hr = 28/v.s;
     if (this.sel && this.sel.t === 'slot') { const r = this.fr.slots[this.sel.i]; if (r && Math.abs(p.x - (r.x + r.w)) < hr && Math.abs(p.y - (r.y + r.h)) < hr) return {t:'slot', i:this.sel.i, h:'size'}; }
     for (let i = this.fr.texts.length - 1; i >= 0; i--) { const b = this.textBox(this.fr.texts[i]); if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) return {t:'text', i}; }
     for (let i = this.fr.slots.length - 1; i >= 0; i--) { const r = this.fr.slots[i]; if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) return {t:'slot', i}; }
     return null;
   },
-  panel(){
-    const P = $('#edPanel'); P.innerHTML = ''; const fr = this.fr; const re = () => { this.draw(); };
-    const mini = (opts, get, set) => { const m = el('div', {class:'minis'}); opts.forEach(([k, n]) => m.appendChild(el('button', {type:'button', 'aria-pressed':String(get() === k), onclick:() => { set(k); this.panel(); this.draw(); }}, esc(n)))); return m; };
-    const t = (label, get, set) => { const l = el('label', {class:'f'}, esc(label)); const i = el('input', {type:'text'}); i.value = get(); i.addEventListener('input', () => { set(i.value); re(); }); l.appendChild(i); return l; };
-    const color = (label, get, set) => { const l = el('label', {class:'tog'}, `<span>${esc(label)}</span>`); const i = el('input', {type:'color', style:'width:56px;height:36px;border:0;background:none'}); i.value = get(); i.addEventListener('input', () => { set(i.value); re(); }); l.appendChild(i); return l; };
-    P.appendChild(grp('기본', t('이름', () => fr.name, v => fr.name = v),
-      el('div', {class:'f'}, '촬영 방식'), mini([['front','정면'],['top','위에서 (탑뷰)']], () => fr.mode, v => fr.mode = v),
-      el('div', {class:'f'}, '크기'), mini([['50x148','세로 4컷 50×148mm (그림 600×1776px)'],['100x148','한 장 100×148mm (그림 1200×1776px)']], () => `${fr.Wmm}x${fr.Hmm}`, v => { const [w, h] = v.split('x').map(Number); const kx = w/fr.Wmm, ky = h/fr.Hmm; fr.slots.forEach(s => { s.x *= kx; s.w *= kx; s.y *= ky; s.h *= ky; }); fr.texts.forEach(q => { q.x *= kx; q.y *= ky; }); fr.Wmm = w; fr.Hmm = h; }),
-      el('div', {class:'two'})));
-    const two = P.lastChild.lastChild;
-    two.appendChild(num('가로 mm', () => fr.Wmm, v => { fr.Wmm = v; this.draw(); }, 20, 300, .5));
-    two.appendChild(num('세로 mm', () => fr.Hmm, v => { fr.Hmm = v; this.draw(); }, 20, 300, .5));
-    const imgRow = el('div', {class:'row'});
-    imgRow.appendChild(filePick('배경 그림 (사진 아래)', 'image/*', async f => { fr.bgImg = scaledDataURL(await fileToImage(f), 2400, 'image/jpeg', .9); await ensureImgs(fr); this.panel(); this.draw(); }));
-    if (fr.bgImg) imgRow.appendChild(btn('배경 그림 빼기', () => { fr.bgImg = null; this.panel(); this.draw(); }));
-    const ovRow = el('div', {class:'row'});
-    ovRow.appendChild(filePick('위에 덮는 그림 (PNG, JPG)', 'image/*', async f => {
-      const fim = await fileToImage(f); fr.overlay = scaledDataURL(fim, 2400); await ensureImgs(fr);
-      { const [iw, ih] = dims(fim), ra = iw/ih; if (Math.abs(ra/(fr.Wmm/fr.Hmm) - 1) > 0.03) {   // 그림 비율이 프레임과 다르면 크기를 그림에 맞춰요 (그림이 찌그러지지 않게)
-        let H = 148, W = Math.round(H*ra*10)/10; if (W > 100) { W = 100; H = Math.round(W/ra*10)/10; }
-        const sx = W/fr.Wmm, sy = H/fr.Hmm; fr.Wmm = W; fr.Hmm = H; (fr.texts || []).forEach(t => { t.x *= sx; t.y *= sy; });
-        toast(`그림 비율에 맞춰 프레임 크기를 ${W}×${H}mm로 바꿨어요`, 4500); } }
-      if (!(await hasHoles(fr.overlay))) { const r = await punchWhite(fr.overlay); if (r) { fr.overlay = r.url; await ensureImgs(fr); } }   // 투명한 곳이 없으면 하얀 칸을 뚫어요
-      const s = await detectHoles(fr); if (s.length) { fr.slots = s; this.sel = null; toast(`사진 칸 ${s.length}개를 찾았어요`); } else toast('사진 칸을 찾지 못했어요. 칸을 직접 추가해 주세요');
-      this.panel(); this.draw(); }));
-    if (fr.overlay) { ovRow.appendChild(btn('하얀 칸 투명하게 뚫기', async () => { const r = await punchWhite(fr.overlay); if (!r) { toast('뚫을 하얀 칸을 찾지 못했어요'); return; } fr.overlay = r.url; await ensureImgs(fr); const s = await detectHoles(fr); if (s.length) { fr.slots = s; this.sel = null; } toast(`하얀 칸 ${r.n}개를 뚫었어요`); this.panel(); this.draw(); }));
-      ovRow.appendChild(btn(this.punch ? '누르기 그만' : '눌러서 칸 뚫기', () => { this.punch = !this.punch; if (this.punch) toast('그림에서 사진이 들어갈 칸을 하나씩 눌러 주세요', 4000); this.panel(); this.draw(); }, this.punch ? 'btn dark' : 'btn'));
-      ovRow.appendChild(btn('투명한 곳으로 칸 자동 만들기', async () => { const s = await detectHoles(fr); if (s.length) { fr.slots = s; this.sel = null; toast(`칸 ${s.length}개를 찾았어요`); } else toast('투명한 구멍을 찾지 못했어요'); this.panel(); this.draw(); }, 'btn dark')); ovRow.appendChild(btn('덮는 그림 빼기', () => { fr.overlay = null; this.panel(); this.draw(); })); }
-    P.appendChild(grp('바탕', color('바탕색', () => fr.bg, v => fr.bg = v), imgRow, ovRow));
-    // 칸
-    const sl = el('div', {class:'minis'});
-    fr.slots.forEach((s, i) => sl.appendChild(el('button', {type:'button', 'aria-pressed':String(this.sel && this.sel.t === 'slot' && this.sel.i === i), onclick:() => { this.sel = {t:'slot', i}; this.panel(); this.draw(); }}, `칸 ${i+1}`)));
-    sl.appendChild(btn('+ 칸 추가', () => { const last = fr.slots[fr.slots.length - 1] || {w:this.W()*0.8, h:this.W()*0.6, shape:'round'}; fr.slots.push({x:(this.W() - last.w)/2, y:Math.min(this.H() - last.h, (this.H() - last.h)/2), w:last.w, h:last.h, shape:last.shape}); this.sel = {t:'slot', i:fr.slots.length - 1}; this.panel(); this.draw(); }));
-    const sg = grp('사진 칸 (숫자 순서대로 사진이 들어가요)', sl);
-    if (this.sel && this.sel.t === 'slot' && fr.slots[this.sel.i]) {
-      const s = fr.slots[this.sel.i];
-      sg.appendChild(mini([['rect','네모'],['round','둥근 네모'],['oval','동그라미'],['heart','하트']], () => s.shape, v => s.shape = v));
-      const f4 = el('div', {class:'four'});
-      [['x','왼쪽'],['y','위'],['w','너비'],['h','높이']].forEach(([k, n]) => { const l = el('label', {}, n + ' mm'); const i = el('input', {type:'number', step:'.5'}); i.value = (s[k]/MM).toFixed(1); i.addEventListener('change', () => { const v = parseFloat(i.value); if (!isNaN(v)) { s[k] = Math.max(k === 'w' || k === 'h' ? 5*MM : 0, v*MM); this.draw(); } }); l.appendChild(i); f4.appendChild(l); });
-      sg.appendChild(f4);
-      const r = el('div', {class:'row'});
-      r.appendChild(btn('모든 칸을 이 크기·모양으로', () => { fr.slots.forEach(o => { o.w = s.w; o.h = s.h; o.shape = s.shape; }); this.draw(); }));
-      r.appendChild(btn('앞으로', () => { const i = this.sel.i; if (i > 0) { [fr.slots[i-1], fr.slots[i]] = [fr.slots[i], fr.slots[i-1]]; this.sel.i--; this.panel(); this.draw(); } }));
-      r.appendChild(btn('이 칸 지우기', () => { if (fr.slots.length <= 1) { toast('칸은 하나 이상 있어야 해요'); return; } fr.slots.splice(this.sel.i, 1); this.sel = null; this.panel(); this.draw(); }, 'btn danger'));
-      sg.appendChild(r);
-    }
-    sg.appendChild(el('p', {class:'small'}, '그림에서 칸을 끌어 옮기고, 분홍 모서리를 끌어 크기를 바꿔요. 모든 칸은 같은 비율로 맞추면 좋아요 (첫 번째 칸 비율로 촬영해요).'));
-    P.appendChild(sg);
-    // 글자
-    const tl = el('div', {class:'minis'});
-    fr.texts.forEach((q, i) => tl.appendChild(el('button', {type:'button', 'aria-pressed':String(this.sel && this.sel.t === 'text' && this.sel.i === i), onclick:() => { this.sel = {t:'text', i}; this.panel(); this.draw(); }}, esc((resolveText(q.text) || '빈 글자').slice(0, 10)))));
-    tl.appendChild(btn('+ 글자 추가', () => { fr.texts.push({id:uid(), text:'새 글자', x:this.W()/2, y:this.H()*0.92, size:Math.round(this.W()*0.07), color:lum(fr.bg) > .5 ? '#1d1a22' : '#ffffff', font:'Jua', bold:false}); this.sel = {t:'text', i:fr.texts.length - 1}; this.panel(); this.draw(); }));
-    const tg = grp('글자 ({date}는 오늘 날짜, {church}는 교회 이름으로 바뀌어요)', tl);
-    if (this.sel && this.sel.t === 'text' && fr.texts[this.sel.i]) {
-      const q = fr.texts[this.sel.i];
-      tg.appendChild(t('내용', () => q.text, v => q.text = v));
-      tg.appendChild(rng('크기', () => q.size, v => { q.size = v; re(); }, 12, 260, 1));
-      tg.appendChild(color('글자색', () => q.color, v => q.color = v));
-      tg.appendChild(mini(FONTS.map(f => [f, FONT_NAMES[f]]), () => q.font, v => q.font = v));
-      tg.appendChild(tog('굵게', () => q.bold, v => { q.bold = v; re(); }));
-      tg.appendChild(btn('이 글자 지우기', () => { fr.texts.splice(this.sel.i, 1); this.sel = null; this.panel(); this.draw(); }, 'btn danger'));
-    }
-    P.appendChild(tg);
-    const fin = el('div', {class:'row'});
-    fin.appendChild(btn('복제해서 새 프레임으로', () => { const c = clone(fr); c.id = uid(); c.name = fr.name + ' 복사본'; FRAMES.push(c); save(); toast('복제했어요. 지금은 복사본을 편집 중이에요'); this.fr = c; this.panel(); }));
-    fin.appendChild(btn('이 프레임 삭제', () => { if (this.confirmDel) { FRAMES = FRAMES.filter(x => x.id !== fr.id); save(); this.confirmDel = false; go('admin'); toast('삭제했어요'); } else { this.confirmDel = true; toast('한 번 더 누르면 삭제돼요'); setTimeout(() => this.confirmDel = false, 3000); } }, 'btn danger'));
-    P.appendChild(grp('', fin));
+  // ---------- 공통 조각 ----------
+  cards(opts, get, set, cls = ''){ const m = el('div', {class:'ed-cards ' + cls}); opts.forEach(([k, n, sub, art]) => m.appendChild(el('button', {type:'button', 'aria-pressed':String(get() === k), onclick:() => set(k)}, `${art || ''}<b>${esc(n)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}`))); return m; },
+  swatches(list, get, set){ const m = el('div', {class:'ed-sw'}); list.forEach(c => m.appendChild(el('button', {type:'button', 'aria-label':c, 'aria-pressed':String((get() || '').toLowerCase() === c), style:`background:${c}`, onclick:() => set(c)}))); const i = el('input', {type:'color', 'aria-label':'다른 색'}); i.value = get() || '#ffffff'; i.addEventListener('input', () => set(i.value, true)); m.appendChild(el('label', {class:'ed-more', title:'다른 색'}, '+')).appendChild(i); return m; },
+  sec(title, ...kids){ const s = el('div', {class:'ed-sec'}); if (title) s.appendChild(el('h4', {}, esc(title))); kids.flat().forEach(k => k && s.appendChild(typeof k === 'string' ? el('p', {class:'small'}, k) : k)); return s; },
+  shapeArt(k){ const m = {rect:'<rect x="7" y="4" width="10" height="16"/>', round:'<rect x="7" y="4" width="10" height="16" rx="3"/>', oval:'<ellipse cx="12" cy="12" rx="5.5" ry="8"/>', circle:'<circle cx="12" cy="12" r="6"/>', arch:'<path d="M7 20V10a5 5 0 0 1 10 0v10z"/>', heart:'<path d="M12 19s-7-4.4-7-9.2A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 7 1.8C19 14.6 12 19 12 19z"/>'}[k]; return `<svg viewBox="0 0 24 24" class="art">${m.replace(/\/>/g, ' fill="#3a3540"/>').replace('stroke', 'stroke')}</svg>`; },
+  async loadDesign(f){
+    const fr = this.fr; const fim = await fileToImage(f); fr.overlay = scaledDataURL(fim, 2400); await ensureImgs(fr);
+    const [iw, ih] = dims(fim), ra = iw/ih;
+    if (Math.abs(ra/(fr.Wmm/fr.Hmm) - 1) > 0.03) {   // 그림 비율이 프레임과 다르면 크기를 그림에 맞춰요 (그림이 찌그러지지 않게)
+      let H = 148, W = Math.round(H*ra*10)/10; if (W > 100) { W = 100; H = Math.round(W/ra*10)/10; }
+      const sx = W/fr.Wmm, sy = H/fr.Hmm; fr.Wmm = W; fr.Hmm = H; fr.texts.forEach(t => { t.x *= sx; t.y *= sy; });
+      toast(`그림 비율에 맞춰 프레임 크기를 ${W}×${H}mm로 바꿨어요`, 4500); }
+    if (!(await hasHoles(fr.overlay))) { const r = await punchWhite(fr.overlay); if (r) { fr.overlay = r.url; await ensureImgs(fr); } }   // 투명한 곳이 없으면 하얀 칸을 뚫어요
+    const s = await detectHoles(fr);
+    if (s.length) { const shape = fr.slots[0] ? fr.slots[0].shape : 'rect'; fr.slots = s.map(o => ({...o, shape:'rect'})); void shape; this.sel = null; fr.texts = fr.texts.filter(t => !/^\{(church|date)\}$/.test(t.text)); toast(`사진 칸 ${s.length}개를 찾았어요`); }
+    else toast('사진 칸을 찾지 못했어요. 사진칸 탭에서 "눌러서 칸 뚫기"를 써 보세요', 5000);
+    this.tab = 'slots'; this.rail(); this.change();
   },
+  // ---------- 왼쪽 도구 ----------
+  tool(){
+    const T = $('#edTool'); T.innerHTML = ''; const fr = this.fr;
+    if (this.tab === 'start') {
+      T.appendChild(el('div', {class:'ed-steps'}, '<b>프레임 만드는 순서</b><ol><li>아래 두 방법 중 하나를 골라요</li><li><b>사진칸</b>에서 칸 모양을 확인해요</li><li><b>글자</b>와 <b>배경</b>으로 꾸며요</li><li><b>저장하기</b>를 눌러요</li></ol>'));
+      const a = this.sec('방법 1 · 내 디자인 올리기', '미리캔버스, 캔바에서 만든 그림을 올리면 하얀 칸을 찾아서 사진 칸으로 바꿔요. 칸 안에 걸친 캐릭터는 사진 위에 얹혀요.');
+      a.appendChild(el('div', {class:'ed-size'}, '<div><b>세로 4컷</b><span>600×1776px</span><small>한 장에 2개 인쇄</small></div><div><b>한 장</b><span>1200×1776px</span><small>한 장에 1개 인쇄</small></div>'));
+      const up = filePick(fr.overlay ? '다른 그림으로 바꾸기' : '그림 올리기', 'image/*', f => this.loadDesign(f)); up.className = 'btn dark ed-wide'; a.appendChild(up);
+      if (fr.overlay) { const im = el('img', {src:fr.overlay, alt:'올린 디자인', class:'ed-thumb'}); a.insertBefore(im, up); a.appendChild(btn('올린 그림 빼기', () => { fr.overlay = null; this.change(); }, 'btn ed-wide')); }
+      T.appendChild(a);
+      T.appendChild(this.sec('방법 2 · 여기서 직접 꾸미기', '칸 배치를 고른 다음 글자와 배경으로 꾸며요.',
+        this.cards(ED_LAYOUTS.map(([k, n, sub, mkf]) => { const t = mkf(); const W = t.Wmm*12, H = t.Hmm*12, sc = 64/H; const art = `<svg viewBox="0 0 ${W} ${H}" class="lay" style="height:64px;width:${W*sc}px"><rect width="${W}" height="${H}" fill="#fff" stroke="#ccc" stroke-width="${1/sc}"/>${t.slots.map(s => `<rect x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="${Math.min(s.w, s.h)*.06}" fill="#d9d2e4"/>`).join('')}</svg>`; return [k, n, sub, art]; }), () => this.layoutKey(), k => this.applyLayout(k), 'lays')));
+    }
+    if (this.tab === 'slots') {
+      const shape = (this.sel && this.sel.t === 'slot' && fr.slots[this.sel.i] || fr.slots[0] || {}).shape;
+      T.appendChild(this.sec('사진 칸 모양', this.cards(ED_SHAPES.map(([k, n]) => [k, n, '', this.shapeArt(k)]), () => shape, k => { fr.slots.forEach(s => s.shape = k); this.change(); }, 'shapes'),
+        '사진은 칸 네모에 꽉 채워 들어가고, 고른 모양만큼만 보여요. 모든 칸에 함께 적용돼요.'));
+      const list = el('div', {class:'ed-chips'});
+      fr.slots.forEach((s, i) => list.appendChild(el('button', {type:'button', 'aria-pressed':String(this.sel && this.sel.t === 'slot' && this.sel.i === i), onclick:() => { this.sel = {t:'slot', i}; this.change(); }}, `칸 ${i+1}`)));
+      list.appendChild(btn('+ 칸 추가', () => { const last = fr.slots[fr.slots.length - 1] || {w:this.W()*0.8, h:this.W()*0.6, shape:'round'}; fr.slots.push({x:(this.W() - last.w)/2, y:Math.min(this.H() - last.h, (this.H() - last.h)/2), w:last.w, h:last.h, shape:last.shape}); this.sel = {t:'slot', i:fr.slots.length - 1}; this.change(); }));
+      T.appendChild(this.sec(`사진 칸 ${fr.slots.length}개`, list, '숫자 순서대로 사진이 들어가요. 칸을 끌어서 옮기고, 분홍 동그라미를 끌어서 크기를 바꿔요.'));
+      if (fr.overlay) {
+        const r = el('div', {class:'ed-col'});
+        r.appendChild(btn('하얀 칸 다시 찾기', async () => { const p = await punchWhite(fr.overlay); if (p) { fr.overlay = p.url; await ensureImgs(fr); } const s = await detectHoles(fr); if (s.length) { fr.slots = s.map(o => ({...o, shape:fr.slots[0] ? fr.slots[0].shape : 'rect'})); this.sel = null; toast(`사진 칸 ${s.length}개를 찾았어요`); } else toast('하얀 칸을 찾지 못했어요'); this.change(); }));
+        r.appendChild(btn(this.punch ? '누르기 끝내기' : '눌러서 칸 뚫기', () => { this.punch = !this.punch; this.change(); }, this.punch ? 'btn dark' : 'btn'));
+        T.appendChild(this.sec('올린 디자인에서 칸 찾기', r, '자동으로 못 찾은 칸이 있으면 "눌러서 칸 뚫기"를 켜고 미리보기에서 그 칸을 눌러요. 배경과 칸이 테두리 없이 같은 흰색이면 구분할 수 없어요.'));
+      }
+    }
+    if (this.tab === 'text') {
+      const add = (text, k, font, bold, color) => { toast('가운데에 넣었어요. 끌어서 원하는 곳에 놓아요'); fr.texts.push({id:uid(), text, x:this.W()/2, y:this.H()*0.5, size:Math.round(this.W()*k), color:color || (lum(fr.bg) > .5 ? '#1d1a22' : '#ffffff'), font, bold}); this.sel = {t:'text', i:fr.texts.length - 1}; this.change(); };
+      const big = el('div', {class:'ed-col'});
+      big.appendChild(el('button', {type:'button', class:'ed-tbtn', style:'font-size:26px;font-weight:900', onclick:() => add('제목', .1, 'Jua', false)}, '제목 추가'));
+      big.appendChild(el('button', {type:'button', class:'ed-tbtn', style:'font-size:19px;font-weight:700', onclick:() => add('부제목', .065, 'Gowun Dodum', true)}, '부제목 추가'));
+      big.appendChild(el('button', {type:'button', class:'ed-tbtn', style:'font-size:15px', onclick:() => add('작은 글씨', .04, 'IBM Plex Sans KR', false)}, '작은 글씨 추가'));
+      T.appendChild(this.sec('글자 넣기', big));
+      const auto = el('div', {class:'ed-col'});
+      auto.appendChild(btn('오늘 날짜 넣기', () => add('{date}', .045, 'IBM Plex Sans KR', false)));
+      auto.appendChild(btn('교회 이름 넣기', () => add('{church}', .09, 'Gaegu', true)));
+      T.appendChild(this.sec('저절로 바뀌는 글자', auto, '찍는 날의 날짜와 관리자 설정의 교회 이름이 들어가요.'));
+      const deco = el('div', {class:'ed-deco'});
+      ED_DECO.forEach(([t, f, c, b]) => deco.appendChild(el('button', {type:'button', style:`font-family:"${f}";color:${c};font-weight:${b ? 700 : 400}`, onclick:() => add(t, .09, f, b, c)}, esc(resolveText(t)))));
+      T.appendChild(this.sec('꾸민 글자', deco, '누르면 가운데에 들어가요. 끌어서 옮기고, 오른쪽에서 문구를 바꿔요.'));
+    }
+    if (this.tab === 'bg') {
+      T.appendChild(this.sec('바탕색', this.swatches(ED_SWATCH, () => fr.bg, (c) => { fr.bg = c; this.change(); })));
+      const r = el('div', {class:'ed-col'});
+      const up = filePick(fr.bgImg ? '배경 그림 바꾸기' : '배경 그림 올리기', 'image/*', async f => { fr.bgImg = scaledDataURL(await fileToImage(f), 2400, 'image/jpeg', .9); await ensureImgs(fr); this.change(); }); up.className = 'btn'; r.appendChild(up);
+      if (fr.bgImg) r.appendChild(btn('배경 그림 빼기', () => { fr.bgImg = null; this.change(); }));
+      T.appendChild(this.sec('배경 그림', r, '사진 아래에 깔리는 그림이에요. 사진 칸이 위를 덮어요. 캐릭터가 사진 위로 올라와야 하면 시작 탭의 "내 디자인 올리기"를 써요.'));
+    }
+    if (this.tab === 'set') {
+      T.appendChild(this.sec('촬영 방식', this.cards([['front','정면','손님이 카메라를 봐요'],['top','위에서 (탑뷰)','위에서 내려다봐요']], () => fr.mode, k => { fr.mode = k; this.change(); }), '손님 화면에서 이 프레임이 어느 탭에 나올지 정해요.'));
+      const sz = this.cards([['50x148','세로 4컷','50×148mm'],['100x148','한 장','100×148mm']], () => `${fr.Wmm}x${fr.Hmm}`, v => { const [w, h] = v.split('x').map(Number); this.resize(w, h); });
+      const two = el('div', {class:'two'});
+      two.appendChild(num('가로 mm', () => fr.Wmm, v => this.resize(v, fr.Hmm), 20, 300, .5));
+      two.appendChild(num('세로 mm', () => fr.Hmm, v => this.resize(fr.Wmm, v), 20, 300, .5));
+      T.appendChild(this.sec('크기', sz, two, `지금 크기는 용지(${S.print.paperW}×${S.print.paperH}mm) 한 장에 ${sheetLayout(fr).n}개 인쇄돼요.`));
+      T.appendChild(this.sec('손님 화면', tog('손님이 이 프레임을 고를 수 있어요', () => fr.enabled !== false, v => { fr.enabled = v; this.change(false); })));
+      const r = el('div', {class:'ed-col'});
+      r.appendChild(btn('복제해서 새 프레임으로', () => { const c = edSnap(fr); c.id = uid(); c.name = fr.name + ' 복사본'; this.begin(c, true, this.tab); toast('복사본을 만들었어요. 저장하면 목록에 들어가요'); }));
+      if (!this.isNew) r.appendChild(btn('이 프레임 삭제', () => { if (this.confirmDel) { FRAMES = FRAMES.filter(x => x.id !== fr.id); save(); this.confirmDel = false; this.isNew = false; this.hist = [edSnap(fr)]; this.hi = 0; go('admin'); toast('삭제했어요'); } else { this.confirmDel = true; toast('한 번 더 누르면 삭제돼요'); setTimeout(() => this.confirmDel = false, 3000); } }, 'btn danger'));
+      T.appendChild(this.sec('프레임 관리', r));
+    }
+  },
+  layoutKey(){ const fr = this.fr; const n = fr.slots.length; if (fr.Wmm === 50 && n === 4) return 'strip'; if (fr.Wmm === 100 && fr.Hmm === 148) return n === 4 ? 'grid' : n === 2 ? 'two' : n === 1 ? 'one' : ''; return ''; },
+  applyLayout(k){
+    const fr = this.fr, t = ED_LAYOUTS.find(l => l[0] === k)[3](); const shape = fr.slots[0] ? fr.slots[0].shape : 'round';
+    const sx = t.Wmm/fr.Wmm, sy = t.Hmm/fr.Hmm;
+    fr.texts.forEach(q => { q.x *= sx; q.y *= sy; });
+    if (!fr.texts.length) fr.texts = [{id:uid(), text:'{church}', x:t.texts[0].x, y:t.texts[0].y, size:t.texts[0].size, color:lum(fr.bg) > .5 ? '#1d1a22' : '#fff', font:'Gaegu', bold:true}];
+    else { const sorted = [...fr.texts].sort((a, b) => b.size - a.size); sorted.forEach((q, i) => { const tt = t.texts[Math.min(i, t.texts.length - 1)]; q.x = tt.x; if (i < t.texts.length) { q.y = tt.y; q.size = tt.size; } }); }
+    fr.Wmm = t.Wmm; fr.Hmm = t.Hmm; fr.slots = t.slots.map(s => ({...s, shape})); fr.overlay = null; this.sel = null; this.change();
+  },
+  resize(w, h){ const fr = this.fr; const kx = w/fr.Wmm, ky = h/fr.Hmm; fr.slots.forEach(s => { s.x *= kx; s.w *= kx; s.y *= ky; s.h *= ky; }); fr.texts.forEach(q => { q.x *= kx; q.y *= ky; }); fr.Wmm = w; fr.Hmm = h; this.change(); },
+  // ---------- 오른쪽 속성 ----------
+  props(){
+    const P = $('#edProps'); P.innerHTML = ''; const fr = this.fr; const sel = this.sel;
+    const box = el('div', {class:'ed-card'});
+    if (sel && sel.t === 'slot' && fr.slots[sel.i]) {
+      const s = fr.slots[sel.i];
+      box.appendChild(el('h3', {}, `사진 칸 ${sel.i + 1}`));
+      box.appendChild(this.cards(ED_SHAPES.map(([k, n]) => [k, n, '', this.shapeArt(k)]), () => s.shape, k => { s.shape = k; this.change(); }, 'shapes sm'));
+      const f4 = el('div', {class:'four'});
+      [['x','왼쪽'],['y','위'],['w','너비'],['h','높이']].forEach(([k, n]) => { const l = el('label', {}, n + ' mm'); const i = el('input', {type:'number', step:'.5'}); i.value = (s[k]/MM).toFixed(1); i.addEventListener('change', () => { const v = parseFloat(i.value); if (!isNaN(v)) { s[k] = Math.max(k === 'w' || k === 'h' ? 5*MM : 0, v*MM); this.change(false); } }); l.appendChild(i); f4.appendChild(l); });
+      box.appendChild(f4);
+      const r = el('div', {class:'ed-col'});
+      r.appendChild(btn('모든 칸을 이 크기·모양으로', () => { fr.slots.forEach(o => { o.w = s.w; o.h = s.h; o.shape = s.shape; }); this.change(); }));
+      const r2 = el('div', {class:'row'});
+      r2.appendChild(btn('순서 앞으로', () => { const i = this.sel.i; if (i > 0) { [fr.slots[i-1], fr.slots[i]] = [fr.slots[i], fr.slots[i-1]]; this.sel.i--; this.change(); } }));
+      r2.appendChild(btn('순서 뒤로', () => { const i = this.sel.i; if (i < fr.slots.length - 1) { [fr.slots[i+1], fr.slots[i]] = [fr.slots[i], fr.slots[i+1]]; this.sel.i++; this.change(); } }));
+      r.appendChild(r2);
+      r.appendChild(btn('이 칸 지우기', () => { if (fr.slots.length <= 1) { toast('칸은 하나 이상 있어야 해요'); return; } fr.slots.splice(this.sel.i, 1); this.sel = null; this.change(); }, 'btn danger'));
+      box.appendChild(r);
+    } else if (sel && sel.t === 'text' && fr.texts[sel.i]) {
+      const q = fr.texts[sel.i];
+      box.appendChild(el('h3', {}, '글자'));
+      const l = el('label', {class:'f'}, '내용'); const inp = el('input', {type:'text'}); inp.value = q.text; inp.addEventListener('input', () => { q.text = inp.value; this.change(false); }); l.appendChild(inp); box.appendChild(l);
+      const ch = el('div', {class:'ed-chips'});
+      ch.appendChild(btn('+ 날짜', () => { q.text = (q.text ? q.text + ' ' : '') + '{date}'; this.change(); }));
+      ch.appendChild(btn('+ 교회 이름', () => { q.text = (q.text ? q.text + ' ' : '') + '{church}'; this.change(); }));
+      box.appendChild(ch);
+      box.appendChild(rng('크기', () => q.size, v => { q.size = +v; this.change(false); }, 12, 260, 1));
+      box.appendChild(el('div', {class:'f'}, '글자색')); box.appendChild(this.swatches(ED_INK, () => q.color, c => { q.color = c; this.change(); }));
+      box.appendChild(el('div', {class:'f'}, '글꼴'));
+      const fonts = el('div', {class:'ed-fonts'}); FONTS.forEach(f => fonts.appendChild(el('button', {type:'button', 'aria-pressed':String(q.font === f), style:`font-family:"${f}"`, onclick:() => { q.font = f; this.change(); }}, esc(FONT_NAMES[f])))); box.appendChild(fonts);
+      box.appendChild(tog('굵게', () => q.bold, v => { q.bold = v; this.change(false); }));
+      const r = el('div', {class:'row'});
+      r.appendChild(btn('가운데로', () => { q.x = this.W()/2; this.change(false); }));
+      r.appendChild(btn('이 글자 지우기', () => { fr.texts.splice(this.sel.i, 1); this.sel = null; this.change(); }, 'btn danger'));
+      box.appendChild(r);
+    } else {
+      box.classList.add('empty');
+      box.innerHTML = `<div class="ic">${edIcon('<path d="M4 4l7 16 2-7 7-2z"/>')}</div><b>고칠 칸이나 글자를 골라 주세요</b><p class="small">미리보기에서 사진 칸이나 글자를 누르면 여기서 모양, 크기, 색을 바꿀 수 있어요.</p>`;
+    }
+    P.appendChild(box);
+    // 완성 체크
+    const per = sheetLayout(fr).n, a0 = fr.slots[0] ? fr.slots[0].w/fr.slots[0].h : 1;
+    const odd = fr.slots.some(s => Math.abs(s.w/s.h/a0 - 1) > 0.08);
+    const chk = (ok, t) => `<li class="${ok ? 'ok' : 'warn'}">${ok ? '✓' : '!'}<span>${t}</span></li>`;
+    const done = el('div', {class:'ed-card'});
+    done.innerHTML = `<h3>완성했나요?</h3><ul class="ed-check">${chk(fr.slots.length > 0, `사진 칸 ${fr.slots.length}개`)}${chk(!odd, odd ? '칸마다 비율이 달라요. 1번 칸 비율로 찍혀서 다른 칸은 잘려 보여요' : '모든 칸 비율이 같아요')}${chk(true, `${fr.mode === 'top' ? '위에서 (탑뷰)' : '정면'} 촬영 탭에 나와요`)}${chk(true, `용지 한 장에 ${per}개 인쇄돼요`)}${chk(fr.enabled !== false, fr.enabled !== false ? '손님이 고를 수 있어요' : '지금은 손님 화면에서 숨겨져 있어요')}</ul>`;
+    const sv = btn('저장하기', () => this.save(), 'btn dark ed-wide'); done.appendChild(sv);
+    P.appendChild(done);
+  },
+  save(){ clearTimeout(this.ct); this.commit(); const c = edSnap(this.fr); const i = FRAMES.findIndex(x => x.id === c.id); if (i >= 0) FRAMES[i] = c; else FRAMES.push(c); save(); this.isNew = false; this.hist = [edSnap(c)]; this.hi = 0; toast('저장했어요'); go('admin'); },
 };
-$('#edSave').addEventListener('click', () => { const i = FRAMES.findIndex(x => x.id === Editor.fr.id); if (i >= 0) FRAMES[i] = clone(Editor.fr); else FRAMES.push(clone(Editor.fr)); save(); toast('저장했어요'); go('admin'); });
-$('#edCancel').addEventListener('click', () => go('admin'));
+$('#edSave').addEventListener('click', () => Editor.save());
+$('#edCancel').addEventListener('click', () => {
+  if (Editor.dirty() && !Editor.confirmClose) { Editor.confirmClose = true; toast('저장하지 않은 내용이 있어요. 한 번 더 누르면 저장하지 않고 나가요', 4000); setTimeout(() => Editor.confirmClose = false, 4000); return; }
+  go('admin');
+});
+$('#edUndo').addEventListener('click', () => Editor.undoTo(Editor.hi - 1));
+$('#edRedo').addEventListener('click', () => Editor.undoTo(Editor.hi + 1));
+$('#edName').addEventListener('input', e => { Editor.fr.name = e.target.value; Editor.change(false); });
+(() => { const v = $('#edView'); [['num','칸 번호'],['sample','샘플 사진'],['final','완성 모습']].forEach(([k, n]) => v.appendChild(el('button', {type:'button', 'data-v':k, onclick:() => { Editor.vmode = k; Editor.top(); Editor.draw(); }}, n))); })();
+document.addEventListener('keydown', e => {
+  if (cur !== 'editor' || !Editor.fr) return; const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName);
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); Editor.undoTo(e.shiftKey ? Editor.hi + 1 : Editor.hi - 1); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && !typing && Editor.sel) { e.preventDefault(); const fr = Editor.fr, s = Editor.sel;
+    if (s.t === 'text') fr.texts.splice(s.i, 1); else if (fr.slots.length > 1) fr.slots.splice(s.i, 1); Editor.sel = null; Editor.change(); }
+});
 SC.editor = { resize(){ Editor.draw(); } };
 (() => {
   const cv = $('#edCanvas');
@@ -1533,15 +1801,17 @@ SC.editor = { resize(){ Editor.draw(); } };
     if (Editor.punch && Editor.fr.overlay) { const fr = Editor.fr; (async () => {
       const r = await punchAt(fr.overlay, p.x/Editor.W(), p.y/Editor.H());
       if (!r || !r.url) { toast(r && r.tooBig ? '그림 전체가 같은 색이라 뚫을 수 없어요. 칸에 테두리를 넣거나 다른 색으로 칠해 주세요' : '이미 투명한 곳이에요', 4500); return; }
-      fr.overlay = r.url; await ensureImgs(fr); const s = await detectHoles(fr); if (s.length) { fr.slots = s; Editor.sel = null; }
-      toast(`칸을 뚫었어요 (지금 ${s.length}칸)`); Editor.panel(); Editor.draw(); })(); return; }
+      fr.overlay = r.url; await ensureImgs(fr); const s = await detectHoles(fr); if (s.length) { fr.slots = s.map(o => ({...o, shape:fr.slots[0] ? fr.slots[0].shape : 'rect'})); Editor.sel = null; }
+      toast(`칸을 뚫었어요 (지금 ${s.length}칸)`); Editor.change(); })(); return; }
     const h = Editor.hit(p);
-    if (!h) { Editor.sel = null; Editor.drag = null; Editor.panel(); Editor.draw(); return; }
+    if (!h) { if (Editor.sel) { Editor.sel = null; Editor.change(); } Editor.drag = null; return; }
     const changed = !Editor.sel || Editor.sel.t !== h.t || Editor.sel.i !== h.i;
     Editor.sel = {t:h.t, i:h.i};
+    if (changed && h.t === 'slot' && Editor.tab !== 'slots') { Editor.tab = 'slots'; Editor.rail(); }
+    if (changed && h.t === 'text' && Editor.tab !== 'text') { Editor.tab = 'text'; Editor.rail(); }
     const o = h.t === 'slot' ? Editor.fr.slots[h.i] : Editor.fr.texts[h.i];
     Editor.drag = {mode:h.h === 'size' ? 'size' : 'move', p0:p, o0:{...o}};
-    if (changed) Editor.panel(); Editor.draw();
+    if (changed) { Editor.tool(); Editor.props(); } Editor.draw();
   });
   cv.addEventListener('pointermove', e => {
     const d = Editor.drag; if (!d || !Editor.sel) return; const p = toF(e); const dx = p.x - d.p0.x, dy = p.y - d.p0.y;
@@ -1550,7 +1820,7 @@ SC.editor = { resize(){ Editor.draw(); } };
     else { o.x = Math.round(d.o0.x + dx); o.y = Math.round(d.o0.y + dy); }
     Editor.draw();
   });
-  const up = () => { if (Editor.drag) { Editor.drag = null; Editor.panel(); } };
+  const up = () => { if (Editor.drag) { Editor.drag = null; Editor.change(false); if (Editor.sel && Editor.sel.t === 'slot') Editor.props(); } };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 })();
 // 덮는 PNG에서 투명한 구멍 찾기
