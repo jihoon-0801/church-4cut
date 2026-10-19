@@ -1341,7 +1341,7 @@ SC.admin = {
       const top = p.lastChild.firstChild;
       top.appendChild(btn('+ 새 프레임 만들기', () => { const f = frameStrip('새 프레임', 'front', '#ffffff', 'round', '#1d1a22', '{church}'); FRAMES.push(f); save(); Editor.open(f.id); }, 'btn dark'));
       top.appendChild(btn('기본 프레임 다시 넣기', () => { FRAMES.push(...defaultFrames()); save(); this.render(); }));
-      p.appendChild(el('div', {class:'help'}, '<b>직접 만든 프레임 넣는 법</b><ol><li>캔바, 미리캔버스, 포토샵 등에서 사진이 들어갈 자리를 <b>투명하게 뚫은 PNG</b>를 만들어요. 세로 4컷은 50×148mm(600×1776px), 한 장은 100×148mm(1200×1776px)이 딱 맞아요.</li><li>+ 새 프레임 만들기에서 크기를 고르고 <b>위에 덮는 그림</b>으로 그 PNG를 올려요.</li><li><b>투명한 곳으로 칸 자동 만들기</b>를 누르면 사진 칸이 알아서 잡혀요. 칸은 끌어서 옮기고 모서리로 크기를 바꿀 수 있어요.</li></ol>'));
+      p.appendChild(el('div', {class:'help'}, '<b>직접 만든 프레임 넣는 법</b><ol><li>캔바, 미리캔버스 등에서 프레임을 만들 때 사진이 들어갈 자리는 <b>하얀 네모</b>로 두거나 투명하게 뚫어요. 하얀 칸은 앱이 알아서 투명하게 뚫어요. 세로 4컷은 50×148mm(600×1776px), 한 장은 100×148mm(1200×1776px)이 딱 맞아요.</li><li>+ 새 프레임 만들기에서 크기를 고르고 <b>위에 덮는 그림</b>으로 그 그림을 올리면 사진 칸이 알아서 잡혀요. 칸 안에 걸친 캐릭터는 사진 위에 얹혀 나와요. 칸은 끌어서 옮기고 모서리로 크기를 바꿀 수 있어요.</li></ol>'));
     }
     if (atab === 'shoot') {
       this.camOn = true; Cam.start().then(() => this.fillCams());
@@ -1431,7 +1431,7 @@ SC.admin = {
 
 /* ================= 프레임 편집기 ================= */
 const Editor = { fr:null, sel:null, drag:null, view:null,
-  async open(id){ const f = FRAMES.find(x => x.id === id); this.fr = clone(f); this.sel = null; go('editor'); await ensureImgs(this.fr); this.panel(); this.draw(); },
+  async open(id){ const f = FRAMES.find(x => x.id === id); this.fr = clone(f); this.sel = null; this.punch = false; go('editor'); await ensureImgs(this.fr); this.panel(); this.draw(); },
   W(){ return this.fr.Wmm*MM; }, H(){ return this.fr.Hmm*MM; },
   draw(){
     if (cur !== 'editor' || !this.fr) return;
@@ -1469,8 +1469,14 @@ const Editor = { fr:null, sel:null, drag:null, view:null,
     imgRow.appendChild(filePick('배경 그림 (사진 아래)', 'image/*', async f => { fr.bgImg = scaledDataURL(await fileToImage(f), 2400, 'image/jpeg', .9); await ensureImgs(fr); this.panel(); this.draw(); }));
     if (fr.bgImg) imgRow.appendChild(btn('배경 그림 빼기', () => { fr.bgImg = null; this.panel(); this.draw(); }));
     const ovRow = el('div', {class:'row'});
-    ovRow.appendChild(filePick('위에 덮는 그림 (투명 PNG)', 'image/png,image/webp', async f => { fr.overlay = scaledDataURL(await fileToImage(f), 2400); await ensureImgs(fr); this.panel(); this.draw(); toast('투명한 곳으로 칸을 만들려면 아래 버튼을 눌러요'); }));
-    if (fr.overlay) { ovRow.appendChild(btn('투명한 곳으로 칸 자동 만들기', async () => { const s = await detectHoles(fr); if (s.length) { fr.slots = s; this.sel = null; toast(`칸 ${s.length}개를 찾았어요`); } else toast('투명한 구멍을 찾지 못했어요'); this.panel(); this.draw(); }, 'btn dark')); ovRow.appendChild(btn('덮는 그림 빼기', () => { fr.overlay = null; this.panel(); this.draw(); })); }
+    ovRow.appendChild(filePick('위에 덮는 그림 (PNG, JPG)', 'image/*', async f => {
+      fr.overlay = scaledDataURL(await fileToImage(f), 2400); await ensureImgs(fr);
+      if (!(await hasHoles(fr.overlay))) { const r = await punchWhite(fr.overlay); if (r) { fr.overlay = r.url; await ensureImgs(fr); } }   // 투명한 곳이 없으면 하얀 칸을 뚫어요
+      const s = await detectHoles(fr); if (s.length) { fr.slots = s; this.sel = null; toast(`사진 칸 ${s.length}개를 찾았어요`); } else toast('사진 칸을 찾지 못했어요. 칸을 직접 추가해 주세요');
+      this.panel(); this.draw(); }));
+    if (fr.overlay) { ovRow.appendChild(btn('하얀 칸 투명하게 뚫기', async () => { const r = await punchWhite(fr.overlay); if (!r) { toast('뚫을 하얀 칸을 찾지 못했어요'); return; } fr.overlay = r.url; await ensureImgs(fr); const s = await detectHoles(fr); if (s.length) { fr.slots = s; this.sel = null; } toast(`하얀 칸 ${r.n}개를 뚫었어요`); this.panel(); this.draw(); }));
+      ovRow.appendChild(btn(this.punch ? '누르기 그만' : '눌러서 칸 뚫기', () => { this.punch = !this.punch; if (this.punch) toast('그림에서 사진이 들어갈 칸을 하나씩 눌러 주세요', 4000); this.panel(); this.draw(); }, this.punch ? 'btn dark' : 'btn'));
+      ovRow.appendChild(btn('투명한 곳으로 칸 자동 만들기', async () => { const s = await detectHoles(fr); if (s.length) { fr.slots = s; this.sel = null; toast(`칸 ${s.length}개를 찾았어요`); } else toast('투명한 구멍을 찾지 못했어요'); this.panel(); this.draw(); }, 'btn dark')); ovRow.appendChild(btn('덮는 그림 빼기', () => { fr.overlay = null; this.panel(); this.draw(); })); }
     P.appendChild(grp('바탕', color('바탕색', () => fr.bg, v => fr.bg = v), imgRow, ovRow));
     // 칸
     const sl = el('div', {class:'minis'});
@@ -1519,7 +1525,13 @@ SC.editor = { resize(){ Editor.draw(); } };
   const cv = $('#edCanvas');
   const toF = e => { const b = cv.getBoundingClientRect(), v = Editor.view; const px = (e.clientX - b.left)*cv.width/b.width, py = (e.clientY - b.top)*cv.height/b.height; return {x:(px - v.ox)/v.s, y:(py - v.oy)/v.s}; };
   cv.addEventListener('pointerdown', e => {
-    if (!Editor.fr) return; cv.setPointerCapture(e.pointerId); const p = toF(e); const h = Editor.hit(p);
+    if (!Editor.fr) return; cv.setPointerCapture(e.pointerId); const p = toF(e);
+    if (Editor.punch && Editor.fr.overlay) { const fr = Editor.fr; (async () => {
+      const r = await punchAt(fr.overlay, p.x/Editor.W(), p.y/Editor.H());
+      if (!r || !r.url) { toast(r && r.tooBig ? '그림 전체가 같은 색이라 뚫을 수 없어요. 칸에 테두리를 넣거나 다른 색으로 칠해 주세요' : '이미 투명한 곳이에요', 4500); return; }
+      fr.overlay = r.url; await ensureImgs(fr); const s = await detectHoles(fr); if (s.length) { fr.slots = s; Editor.sel = null; }
+      toast(`칸을 뚫었어요 (지금 ${s.length}칸)`); Editor.panel(); Editor.draw(); })(); return; }
+    const h = Editor.hit(p);
     if (!h) { Editor.sel = null; Editor.drag = null; Editor.panel(); Editor.draw(); return; }
     const changed = !Editor.sel || Editor.sel.t !== h.t || Editor.sel.i !== h.i;
     Editor.sel = {t:h.t, i:h.i};
@@ -1538,6 +1550,79 @@ SC.editor = { resize(){ Editor.draw(); } };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 })();
 // 덮는 PNG에서 투명한 구멍 찾기
+// 하얀 칸을 투명하게: 흰색으로 이어진 큰 덩어리(그림의 1~40%)만 뚫고, 캐릭터 속 작은 흰 부분은 그대로 둬요.
+// 점선 테두리 틈으로 하얀 바탕과 이어져도 칸을 따로 찾도록, 흰 부분을 조금 깎아서 덩어리를 나눈 뒤 다시 키워요.
+async function punchWhite(src){
+  const im = await getImg(src).p; if (!im) return null;
+  const [w, h] = dims(im); const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, w, h), a = d.data, N = w*h;
+  const wm = new Uint8Array(N); for (let i = 0; i < N; i++) wm[i] = a[i*4+3] > 200 && a[i*4] >= 234 && a[i*4+1] >= 234 && a[i*4+2] >= 234 ? 1 : 0;
+  const r = Math.max(3, Math.round(Math.min(w, h)*0.006));
+  // 정사각형으로 깎기 (가로, 세로 따로)
+  const erode = (src_, horiz) => { const o = new Uint8Array(N);
+    if (horiz) for (let y = 0; y < h; y++) { let run = 0; const row = y*w; const L = new Int32Array(w);
+      for (let x0 = 0; x0 < w; x0++) { run = src_[row+x0] ? run + 1 : 0; L[x0] = run; }
+      for (let x0 = 0; x0 < w; x0++) { const xe = x0 + r; if (xe < w && L[xe] >= 2*r + 1) o[row+x0] = 1; } }
+    else for (let x0 = 0; x0 < w; x0++) { let run = 0; const L = new Int32Array(h);
+      for (let y = 0; y < h; y++) { run = src_[y*w+x0] ? run + 1 : 0; L[y] = run; }
+      for (let y = 0; y < h; y++) { const ye = y + r; if (ye < h && L[ye] >= 2*r + 1) o[y*w+x0] = 1; } }
+    return o; };
+  const em = erode(erode(wm, true), false);
+  const lab = new Uint8Array(N), st = new Int32Array(N), kill = new Uint8Array(N); let found = 0;
+  for (let i = 0; i < N; i++) {
+    if (lab[i] || !em[i]) continue;
+    let top = 0, cnt = 0, minx = w, miny = h, maxx = 0, maxy = 0; st[top++] = i; lab[i] = 1; const list = [];
+    while (top) { const q = st[--top], qx = q % w, qy = (q - qx)/w; list.push(q); cnt++;
+      if (qx < minx) minx = qx; if (qx > maxx) maxx = qx; if (qy < miny) miny = qy; if (qy > maxy) maxy = qy;
+      if (qx > 0 && !lab[q-1] && em[q-1]) { lab[q-1] = 1; st[top++] = q-1; }
+      if (qx < w-1 && !lab[q+1] && em[q+1]) { lab[q+1] = 1; st[top++] = q+1; }
+      if (qy > 0 && !lab[q-w] && em[q-w]) { lab[q-w] = 1; st[top++] = q-w; }
+      if (qy < h-1 && !lab[q+w] && em[q+w]) { lab[q+w] = 1; st[top++] = q+w; } }
+    const box = (maxx - minx + 1)*(maxy - miny + 1);
+    if (!(cnt > N*0.008 && cnt < N*0.4 && cnt/box > 0.45)) continue;
+    found++;
+    // 다시 키우기: 깎은 만큼(r) 안에 있는 원래 흰 부분, 칸 네모 밖으로는 안 나가게
+    const X0 = Math.max(0, minx - r), X1 = Math.min(w-1, maxx + r), Y0 = Math.max(0, miny - r), Y1 = Math.min(h-1, maxy + r), BW = X1 - X0 + 1, BH = Y1 - Y0 + 1;
+    const cm = new Uint8Array(BW*BH); for (const q of list) { const qx = q % w, qy = (q - qx)/w; cm[(qy-Y0)*BW + qx-X0] = 1; }
+    const H1 = new Uint8Array(BW*BH);
+    for (let y = 0; y < BH; y++) { let last = -1e9; for (let x0 = 0; x0 < BW; x0++) { if (cm[y*BW+x0]) last = x0; if (x0 - last <= r) H1[y*BW+x0] = 1; }
+      last = 1e9; for (let x0 = BW-1; x0 >= 0; x0--) { if (cm[y*BW+x0]) last = x0; if (last - x0 <= r) H1[y*BW+x0] = 1; } }
+    for (let x0 = 0; x0 < BW; x0++) { let last = -1e9; const V = new Uint8Array(BH);
+      for (let y = 0; y < BH; y++) { if (H1[y*BW+x0]) last = y; if (y - last <= r) V[y] = 1; }
+      last = 1e9; for (let y = BH-1; y >= 0; y--) { if (H1[y*BW+x0]) last = y; if (last - y <= r) V[y] = 1; }
+      for (let y = 0; y < BH; y++) { const q = (y+Y0)*w + x0+X0; if (V[y] && wm[q]) kill[q] = 1; } }
+  }
+  if (!found) return null;
+  for (let i = 0; i < N; i++) if (kill[i]) a[i*4+3] = 0;
+  // 가장자리에 남는 하얀 번짐도 지워요
+  for (let pass = 0; pass < 2; pass++) { const add = [];
+    for (let i = 0; i < N; i++) { if (kill[i] || a[i*4+3] === 0) continue; if (a[i*4] < 200 || a[i*4+1] < 200 || a[i*4+2] < 200) continue; const ix = i % w;
+      if ((ix > 0 && kill[i-1]) || (ix < w-1 && kill[i+1]) || (i >= w && kill[i-w]) || (i < N-w && kill[i+w])) add.push(i); }
+    for (const i of add) { a[i*4+3] = 0; kill[i] = 1; } }
+  x.putImageData(d, 0, 0); return {url:c.toDataURL('image/png'), n:found};
+}
+// 누른 곳과 같은 색으로 이어진 부분만 투명하게 (배경도 하얀색일 때, 칸 색이 하얗지 않을 때)
+async function punchAt(src, fx, fy){
+  const im = await getImg(src).p; if (!im) return null;
+  const [w, h] = dims(im); const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, w, h), a = d.data, N = w*h;
+  const sx = Math.min(w-1, Math.max(0, Math.floor(fx*w))), sy = Math.min(h-1, Math.max(0, Math.floor(fy*h))), s0 = (sy*w + sx)*4;
+  if (a[s0+3] < 60) return {url:null, cnt:0};
+  const R = a[s0], G = a[s0+1], B = a[s0+2];
+  const dist = i => Math.max(Math.abs(a[i*4] - R), Math.abs(a[i*4+1] - G), Math.abs(a[i*4+2] - B));
+  const near = (i, t) => a[i*4+3] > 60 && dist(i) <= t;
+  const lab = new Uint8Array(N), st = new Int32Array(N); let top = 0, cnt = 0; st[top++] = sy*w + sx; lab[sy*w + sx] = 1;
+  while (top) { const q = st[--top], qx = q % w; cnt++;
+    for (const n of [qx > 0 ? q-1 : -1, qx < w-1 ? q+1 : -1, q-w, q+w]) if (n >= 0 && n < N && !lab[n] && near(n, 10)) { lab[n] = 1; st[top++] = n; } }
+  if (cnt > N*0.85) return {url:null, cnt, tooBig:true};
+  for (let i = 0; i < N; i++) if (lab[i]) a[i*4+3] = 0;
+  for (let pass = 0; pass < 2; pass++) { const kill = [];
+    for (let i = 0; i < N; i++) { if (lab[i] || a[i*4+3] === 0 || dist(i) > 70) continue; const ix = i % w;
+      if ((ix > 0 && lab[i-1]) || (ix < w-1 && lab[i+1]) || (i >= w && lab[i-w]) || (i < N-w && lab[i+w])) kill.push(i); }
+    for (const i of kill) { a[i*4+3] = 0; lab[i] = 1; } }
+  x.putImageData(d, 0, 0); return {url:c.toDataURL('image/png'), cnt};
+}
+const hasHoles = async src => { const im = await getImg(src).p; if (!im) return false; const c = document.createElement('canvas'); c.width = 120; c.height = 180; const x = c.getContext('2d'); x.drawImage(im, 0, 0, 120, 180); const a = x.getImageData(0, 0, 120, 180).data; let t = 0; for (let i = 3; i < a.length; i += 4) if (a[i] < 60) t++; return t > 120*180*0.01; };
 async function detectHoles(fr){
   const im = await getImg(fr.overlay).p; if (!im) return [];
   const W = fr.Wmm*MM, H = fr.Hmm*MM, k = Math.min(1, 360/Math.max(W, H));
@@ -1562,7 +1647,7 @@ try { await Promise.race([document.fonts.ready, sleep(2500)]); await Promise.rac
 await Promise.all(USTK.map(u => getImg(u.src).p));
 buildStickers();
 go('home');
-if (/[?&]debug\b/.test(location.search)) window.__c4 = { makeVideo:() => makeVideo(Final.token), detectHoles, buildSheet, get sess(){ return sess; }, get FRAMES(){ return FRAMES; }, Final };
+if (/[?&]debug\b/.test(location.search)) window.__c4 = { makeVideo:() => makeVideo(Final.token), detectHoles, punchWhite, punchAt, Editor, buildSheet, get sess(){ return sess; }, get FRAMES(){ return FRAMES; }, Final };
 })();
 </script>
 </body></html>
