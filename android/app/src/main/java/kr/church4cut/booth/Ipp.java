@@ -94,7 +94,29 @@ public final class Ipp {
   }
 
   public static Res send(String uri, byte[] head, byte[] doc, int timeoutMs) throws IOException {
-    HttpURLConnection c = (HttpURLConnection) new URL(httpUrl(uri)).openConnection();
+    try { return post(httpUrl(uri), head, doc, timeoutMs); }
+    catch (UpgradeNeeded e) { return post("https" + httpUrl(uri).substring(4), head, doc, timeoutMs); }   // 암호화 연결만 받는 프린터
+  }
+  static final class UpgradeNeeded extends IOException { UpgradeNeeded() { super("426"); } }
+
+  /** 같은 와이파이 프린터는 스스로 만든 인증서를 써서, 이 연결에서만 인증서 확인을 건너뛰어요 */
+  static void trustLan(HttpURLConnection c) {
+    if (!(c instanceof javax.net.ssl.HttpsURLConnection)) return;
+    try {
+      javax.net.ssl.TrustManager[] tm = {new javax.net.ssl.X509TrustManager() {
+        public void checkClientTrusted(java.security.cert.X509Certificate[] x, String a) {}
+        public void checkServerTrusted(java.security.cert.X509Certificate[] x, String a) {}
+        public java.security.cert.X509Certificate[] getAcceptedIssuers() { return new java.security.cert.X509Certificate[0]; }
+      }};
+      javax.net.ssl.SSLContext ctx = javax.net.ssl.SSLContext.getInstance("TLS"); ctx.init(null, tm, new java.security.SecureRandom());
+      ((javax.net.ssl.HttpsURLConnection) c).setSSLSocketFactory(ctx.getSocketFactory());
+      ((javax.net.ssl.HttpsURLConnection) c).setHostnameVerifier((h, s) -> true);
+    } catch (Exception ignored) {}
+  }
+
+  static Res post(String url, byte[] head, byte[] doc, int timeoutMs) throws IOException {
+    HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+    trustLan(c);
     try {
       c.setConnectTimeout(5000); c.setReadTimeout(timeoutMs);
       c.setDoOutput(true); c.setRequestMethod("POST");
@@ -102,6 +124,7 @@ public final class Ipp {
       c.setFixedLengthStreamingMode(head.length + (doc == null ? 0 : doc.length));
       try (OutputStream o = c.getOutputStream()) { o.write(head); if (doc != null) o.write(doc); }
       int code = c.getResponseCode();
+      if (code == 426 && url.startsWith("http:")) throw new UpgradeNeeded();
       if (code != 200) throw new IOException("프린터가 HTTP " + code + " 로 답했어요");
       try (InputStream i = c.getInputStream()) {
         ByteArrayOutputStream b = new ByteArrayOutputStream(); byte[] t = new byte[8192]; int n;

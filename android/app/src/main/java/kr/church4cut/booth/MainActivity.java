@@ -123,7 +123,7 @@ public class MainActivity extends Activity {
   }
 
   final class Bridge {
-    @JavascriptInterface public String version() { return "1"; }
+    @JavascriptInterface public String version() { return "2"; }
 
     /** 확인 화면 없이 바로 인쇄. url이 비어 있으면 프린터를 찾아서 첫 번째로 보내요. */
     @JavascriptInterface public void print(String id, String b64, int copies, double wMm, double hMm, String url) {
@@ -160,7 +160,7 @@ public class MainActivity extends Activity {
         PrintAttributes.MediaSize ms = new PrintAttributes.MediaSize("booth", "Booth",
             (int) Math.round(Math.min(wMm, hMm) / 25.4 * 1000), (int) Math.round(Math.max(wMm, hMm) / 25.4 * 1000));
         PrintAttributes at = new PrintAttributes.Builder().setMediaSize(Math.round(wMm) == 100 && Math.round(hMm) == 148 ? PrintAttributes.MediaSize.JPN_HAGAKI : ms)
-            .setMinMargins(PrintAttributes.Margins.NO_MARGINS).build();
+            .setMinMargins(PrintAttributes.Margins.NO_MARGINS).setColorMode(PrintAttributes.COLOR_MODE_COLOR).build();
         pm.print("church-4cut", web.createPrintDocumentAdapter("church-4cut"), at);
       });
     }

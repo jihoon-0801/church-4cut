@@ -155,6 +155,8 @@ final class Printer {
       q.str(Ipp.V_KEYWORD, "media", mediaKw);
     }
     if (a.has("print-scaling-supported", "fill")) q.str(Ipp.V_KEYWORD, "print-scaling", "fill");
+    // 항상 컬러로
+    if (a.get("print-color-mode-supported").isEmpty() || a.has("print-color-mode-supported", "color")) q.str(Ipp.V_KEYWORD, "print-color-mode", "color");
     return q.bytes();
   }
 }
