@@ -1282,6 +1282,7 @@ $('#decoDone').addEventListener('click', () => { Deco.sel = -1; go('final'); });
 
 /* ---------- 완성 ---------- */
 const Final = { blob:null, canvas:null, idle:null, left:0, token:0, copies:1 };
+const RECENT = [];   // 최근 완성 사진 (관리자에서 다시 인쇄, 앱을 다시 켜면 비워짐)
 async function makeVideo(tk){
   const fr = sess.frame; const clips = sess.chosen.map(i => sess.shots[i] && sess.shots[i].clip);
   if (!REC_MIME || !clips.some(Boolean)) return null;
@@ -1316,6 +1317,7 @@ SC.final = {
     Final.blob = await new Promise(r => Final.canvas.toBlob(r, 'image/jpeg', .92));
     $('#finalImg').src = URL.createObjectURL(Final.blob);
     S.count = (S.count || 0) + 1; save();
+    RECENT.unshift({canvas:Final.canvas, frame:fr, at:new Date()}); RECENT.length = Math.min(RECENT.length, 10);
     Final.printing = false; this.copies(); this.resetIdle();
     const qb = $('#qrBox'), qa = $('#qrArea'), msg = $('#qrMsg'); qa.innerHTML = '';
     if (!(S.qr.cloud && S.qr.preset)) { qb.hidden = true; return; }
@@ -1348,8 +1350,16 @@ $('#final').addEventListener('pointerdown', () => { if (cur === 'final') SC.fina
 ['visibilitychange', 'afterprint', 'focus'].forEach(ev => (ev === 'visibilitychange' ? document : window).addEventListener(ev, () => { if (cur === 'final' && !document.hidden) SC.final.resetIdle(); }));
 $('#cpMinus').addEventListener('click', () => { Final.copies--; SC.final.copies(); });
 $('#cpPlus').addEventListener('click', () => { Final.copies++; SC.final.copies(); });
-$('#finalHome').addEventListener('click', () => go('home'));
-$('#final .ktime').addEventListener('click', () => go('home'));
+// 인쇄 누르고 2분 안에 처음으로 가려 하면 한 번 더 묻기 (넘어가면 인쇄가 취소될 수 있음)
+function finalHome(){
+  const now = Date.now();
+  if (Final.printing && now - Final.printAt < 120000 && !(now - (Final.homeArm || 0) < 5000)) {
+    Final.homeArm = now; toast('아직 인쇄 중일 수 있어요. 사진이 다 나온 뒤 한 번 더 누르면 처음으로 가요.', 5000); return;
+  }
+  go('home');
+}
+$('#finalHome').addEventListener('click', finalHome);
+$('#final .ktime').addEventListener('click', finalHome);
 
 /* ================= 인쇄 ================= */
 function sheetLayout(fr){
@@ -1382,7 +1392,7 @@ async function printFrame(frameCv, fr, copies){
   if (framed) toast('미리보기 화면에서는 인쇄 창이 열리지 않아요. 앱 주소로 직접 열면 돼요.', 5000);
   window.print();
 }
-$('#printBtn').addEventListener('click', () => { Final.printing = true; SC.final.resetIdle(); printFrame(Final.canvas, sess.frame, Final.copies); });
+$('#printBtn').addEventListener('click', () => { Final.printing = true; Final.printAt = Date.now(); SC.final.resetIdle(); printFrame(Final.canvas, sess.frame, Final.copies); });
 
 /* ================= 관리자 ================= */
 const Pin = { v:'' };
@@ -1539,6 +1549,14 @@ SC.admin = {
       off.appendChild(num('위아래 위치 보정 (mm, + 아래)', () => P.offY, v => P.offY = v, -10, 10, .5));
       p.appendChild(grp('위치 맞추기', '시험 인쇄해 보고 한쪽으로 치우치면 보정 값을 바꿔요.', off,
         btn('시험 인쇄', async () => { const fr = FRAMES.find(f => f.enabled) || FRAMES[0]; await ensureImgs(fr); printFrame(frameCanvas(fr, 2, {numbers:true}), fr, 1); }, 'btn dark')));
+      const rl = el('div', {class:'flist'});
+      RECENT.forEach(r => { const it = el('div', {class:'fitem'});
+        it.appendChild(el('img', {src:r.canvas.toDataURL('image/jpeg', .6), alt:''}));
+        it.appendChild(el('div', {class:'nm'}, r.at.toLocaleTimeString('ko-KR', {hour:'numeric', minute:'2-digit'})));
+        it.appendChild(btn('다시 인쇄', () => printFrame(r.canvas, r.frame, 1), 'btn dark'));
+        rl.appendChild(it); });
+      p.appendChild(grp('최근 사진 다시 인쇄', '인쇄가 취소됐거나 한 장 더 필요할 때 여기서 다시 뽑아요. 최근 10장까지 보이고, 앱을 껐다 켜면 비워져요.',
+        RECENT.length ? rl : el('p', {class:'small'}, '아직 만든 사진이 없어요.')));
       p.appendChild(el('div', {class:'help'}, '<b>태블릿에서 CP1500으로 인쇄하기</b><ol><li>CP1500과 태블릿을 같은 와이파이에 연결해요 (프린터 메뉴의 Wi-Fi 설정).</li><li>안드로이드는 Play 스토어에서 <b>Canon Print Service</b> 또는 <b>Mopria 인쇄 서비스</b>를 설치하고 켜요. 아이패드는 AirPrint로 바로 돼요.</li><li>인쇄 창에서 프린터를 CP1500으로, 용지를 <b>엽서(100×148mm)</b>로, 여백 없음을 골라요.</li></ol>'));
     }
     if (atab === 'qr') {
