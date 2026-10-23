@@ -1395,6 +1395,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
+const APP_VER = '10-23 c';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -1411,7 +1412,7 @@ async function printFrame(frameCv, fr, copies){
   }
   const url = URL.createObjectURL(blob), area = $('#printArea'); area.innerHTML = '';
   let st = $('#printStyle'); if (!st) { st = el('style', {id:'printStyle'}); document.head.appendChild(st); }
-  st.textContent = `@page{size:${S.print.paperW}mm ${S.print.paperH}mm;margin:0}@media print{#printArea img{display:block;width:${S.print.paperW}mm;height:calc(${S.print.paperH}mm - 1px);margin:0}#printArea img:not(:last-child){break-after:page}}`;
+  st.textContent = `@page{size:${S.print.paperW}mm ${S.print.paperH}mm;margin:0}@media print{#printArea img{display:block;width:min(${S.print.paperW}mm,100vw);height:min(calc(${S.print.paperH}mm - 1px),calc(100vh - 1px));margin:0 auto}#printArea img:not(:last-child){break-after:page}}`;
   const imgs = []; for (let i = 0; i < copies; i++) { const im = el('img', {src:url, alt:''}); area.appendChild(im); imgs.push(new Promise(r => im.complete ? r() : (im.onload = r))); }
   await Promise.all(imgs);
   let framed = false; try { framed = window.self !== window.top; } catch(e) { framed = true; }
@@ -1565,6 +1566,7 @@ SC.admin = {
         filePick('스티커 올리기 (여러 개 가능)', 'image/png,image/webp,image/*', async fs => { for (const f of fs) USTK.push({id:uid(), src:scaledDataURL(await fileToImage(f), 600)}); save(); buildStickers(); this.render(); }, true), g));
     }
     if (atab === 'print') {
+      p.appendChild(el('p', {class:'small'}, `화면 버전: ${APP_VER}${APP ? ' · 태블릿 앱' : ' · 브라우저'}`));
       const P = S.print;
       p.appendChild(grp('용지',
         el('div', {class:'two'}), tog('자르는 위치 표시 (가장자리에 짧은 선)', () => P.cut, v => P.cut = v),
