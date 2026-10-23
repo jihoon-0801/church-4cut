@@ -365,9 +365,11 @@ input[type=range]{width:100%;accent-color:var(--ink)}
 .toast.on{opacity:1}
 #printArea{display:none}
 @media print{
-  html,body{height:auto;background:#fff}
-  .screen,.modal,.toast{display:none!important}
+  /* 인쇄할 사진만 남기고, 빈 페이지가 생기지 않게 여백과 다른 요소를 모두 없애요 */
+  :root,html,body{height:auto!important;margin:0!important;padding:0!important;background:#fff;overflow:hidden}
+  body>*:not(#printArea){display:none!important}
   #printArea{display:block!important}
+  #printArea img{overflow:hidden}
 }
 @media (prefers-reduced-motion:reduce){#flash.go{animation:none}}
 .home-pv .bg-pv{min-height:200px;background:#111 center/cover no-repeat}.home-pv{display:flex;gap:10px;flex-wrap:wrap}.home-pv .pv-box{flex:1;min-width:160px;background:#111;color:#ddd;border-radius:14px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:120px}.home-pv span{font-size:12px;color:#999;align-self:flex-start}.home-pv img{max-height:110px;max-width:100%;object-fit:contain}.home-pv b{font-size:18px;margin:auto 0 0}.home-pv i{font-size:12px;color:#888;font-style:normal;margin-bottom:auto}
@@ -1409,7 +1411,7 @@ async function printFrame(frameCv, fr, copies){
   }
   const url = URL.createObjectURL(blob), area = $('#printArea'); area.innerHTML = '';
   let st = $('#printStyle'); if (!st) { st = el('style', {id:'printStyle'}); document.head.appendChild(st); }
-  st.textContent = `@page{size:${S.print.paperW}mm ${S.print.paperH}mm;margin:0}@media print{#printArea img{display:block;width:${S.print.paperW}mm;height:${S.print.paperH}mm;break-after:page}}`;
+  st.textContent = `@page{size:${S.print.paperW}mm ${S.print.paperH}mm;margin:0}@media print{#printArea img{display:block;width:${S.print.paperW}mm;height:calc(${S.print.paperH}mm - 1px);margin:0}#printArea img:not(:last-child){break-after:page}}`;
   const imgs = []; for (let i = 0; i < copies; i++) { const im = el('img', {src:url, alt:''}); area.appendChild(im); imgs.push(new Promise(r => im.complete ? r() : (im.onload = r))); }
   await Promise.all(imgs);
   let framed = false; try { framed = window.self !== window.top; } catch(e) { framed = true; }
