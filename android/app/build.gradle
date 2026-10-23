@@ -1,0 +1,26 @@
+plugins { id 'com.android.application' }
+
+android {
+  namespace 'kr.church4cut.booth'
+  compileSdk 34
+  defaultConfig {
+    applicationId 'kr.church4cut.booth'
+    minSdk 24
+    targetSdk 34
+    versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int)
+    versionName "1.${System.getenv('GITHUB_RUN_NUMBER') ?: '0'}"
+  }
+  // 교회 태블릿에 직접 설치하는 앱이라 서명 열쇠를 저장소에 같이 둬요 (새 버전을 덮어 설치할 수 있게)
+  signingConfigs {
+    booth {
+      storeFile file('../booth.jks')
+      storePassword 'church4cut'
+      keyAlias 'booth'
+      keyPassword 'church4cut'
+    }
+  }
+  buildTypes {
+    release { minifyEnabled false; signingConfig signingConfigs.booth }
+  }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}

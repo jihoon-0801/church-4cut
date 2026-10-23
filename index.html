@@ -1391,15 +1391,29 @@ function buildSheet(frameCv, fr){
     for (let j = 1; j < L.ny; j++) { const Y = oy + j*h; x.beginPath(); x.moveTo(0, Y); x.lineTo(t, Y); x.moveTo(c.width - t, Y); x.lineTo(c.width, Y); x.stroke(); } }
   return c;
 }
+/* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
+const APP = window.BoothApp || null;
+const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
+const boothCbs = {};
+window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
+function booth(method, ...args){ return new Promise(res => { const id = uid(); boothCbs[id] = res; try { APP[method](id, ...args); } catch(e) { delete boothCbs[id]; res({ok:false, msg:String(e)}); } }); }
+const blobB64 = blob => new Promise(r => { const f = new FileReader(); f.onload = () => r(String(f.result).split(',')[1]); f.readAsDataURL(blob); });
 async function printFrame(frameCv, fr, copies){
   const sheet = buildSheet(frameCv, fr);
   const blob = await new Promise(r => sheet.toBlob(r, 'image/jpeg', .95));
+  if (APP && S.print.direct !== false) {
+    toast('프린터로 보내는 중이에요…', 4000);
+    const r = await booth('print', await blobB64(blob), copies, S.print.paperW, S.print.paperH, S.print.ipp || '');
+    if (r.ok) { if (r.url && r.url !== S.print.ipp) { S.print.ipp = r.url; save(); } toast('프린터로 보냈어요. 사진이 나올 때까지 잠시 기다려 주세요.', 5000); return; }
+    toast(`바로 인쇄하지 못했어요 (${r.msg}). 인쇄 화면을 열게요.`, 7000);
+  }
   const url = URL.createObjectURL(blob), area = $('#printArea'); area.innerHTML = '';
   let st = $('#printStyle'); if (!st) { st = el('style', {id:'printStyle'}); document.head.appendChild(st); }
   st.textContent = `@page{size:${S.print.paperW}mm ${S.print.paperH}mm;margin:0}@media print{#printArea img{display:block;width:${S.print.paperW}mm;height:${S.print.paperH}mm;break-after:page}}`;
   const imgs = []; for (let i = 0; i < copies; i++) { const im = el('img', {src:url, alt:''}); area.appendChild(im); imgs.push(new Promise(r => im.complete ? r() : (im.onload = r))); }
   await Promise.all(imgs);
   let framed = false; try { framed = window.self !== window.top; } catch(e) { framed = true; }
+  if (APP) { APP.printDialog(S.print.paperW, S.print.paperH); return; }
   if (framed) toast('미리보기 화면에서는 인쇄 창이 열리지 않아요. 앱 주소로 직접 열면 돼요.', 5000);
   window.print();
 }
@@ -1430,6 +1444,7 @@ function rng(label, get, set, min, max, step, fmt = v => v){ const r = el('div',
 function btn(label, fn, cls = 'btn'){ return el('button', {type:'button', class:cls, onclick:fn}, esc(label)); }
 function filePick(label, accept, fn, multiple = false){ const l = el('label', {class:'btn', style:'display:inline-block;cursor:pointer'}, esc(label)); const i = el('input', {type:'file', accept, hidden:''}); if (multiple) i.multiple = true; i.addEventListener('change', async () => { const fs = [...i.files]; i.value = ''; if (fs.length) await fn(multiple ? fs : fs[0]); }); l.appendChild(i); return l; }
 async function saveFile(blob, name){
+  if (APP) { const r = await booth('save', await blobB64(blob), name, blob.type || 'application/octet-stream'); toast(r.ok ? (/^image/.test(blob.type) ? '갤러리에 저장했어요' : '다운로드 폴더에 저장했어요') : '저장하지 못했어요: ' + r.msg); return; }
   try { if (window.claude && window.claude.use) { const d = await window.claude.use('downloads'); if (d) { await d.save({filename:name, data:blob}); return; } } } catch(e) { if (e && e.code === 'declined') return; }
   const u = URL.createObjectURL(blob); const a = el('a', {href:u, download:name}); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000);
 }
@@ -1561,13 +1576,26 @@ SC.admin = {
       off.appendChild(num('위아래 위치 보정 (mm, + 아래)', () => P.offY, v => P.offY = v, -10, 10, .5));
       p.appendChild(grp('위치 맞추기', '시험 인쇄해 보고 한쪽으로 치우치면 보정 값을 바꿔요.', off,
         btn('시험 인쇄', async () => { const fr = FRAMES.find(f => f.enabled) || FRAMES[0]; await ensureImgs(fr); printFrame(frameCanvas(fr, 2, {numbers:true}), fr, 1); }, 'btn dark')));
+      if (APP) {
+        const found = el('div', {class:'row'});
+        p.appendChild(grp('프린터로 바로 인쇄 (태블릿 앱)',
+          tog('확인 화면 없이 바로 인쇄하기', () => S.print.direct !== false, v => S.print.direct = v),
+          txt('프린터 주소 (비워 두면 처음 인쇄할 때 저절로 찾아요)', () => S.print.ipp || '', v => S.print.ipp = v.trim()),
+          btn('와이파이에서 프린터 찾기', async () => { found.innerHTML = '<span class="small">찾는 중이에요…</span>'; const r = await booth('find'); found.innerHTML = '';
+            if (!r.ok || !r.list.length) { found.appendChild(el('span', {class:'small'}, '프린터를 못 찾았어요. 프린터와 태블릿이 같은 와이파이인지 확인해요.')); return; }
+            r.list.forEach(x => found.appendChild(btn(`${x.name} 쓰기`, () => { S.print.ipp = x.url; save(); toast(`${x.name}(으)로 인쇄해요`); this.render(); }))); }),
+          found,
+          '<span class="small">바로 인쇄가 안 되면 저절로 안드로이드 인쇄 화면이 열려요. 위 "시험 인쇄"로 먼저 확인해 보세요.</span>'));
+      } else {
+        p.appendChild(grp('확인 화면 없이 바로 인쇄하려면', `<span class="small">안드로이드 태블릿에 <b>교회 인생네컷 앱</b>을 설치해서 열면 인쇄 확인 화면 없이 프린터로 바로 나가요. 태블릿에서 <a href="${APK_URL}">앱 내려받기</a>를 눌러 설치해요.</span>`));
+      }
       const rl = el('div', {class:'flist'}), total = await DB.countPhotos() || 0, shown = PH.more || 24;
       const loadCv = async id => { const r = await DB.getPhoto(id); if (!r) return null; const im = await fileToImage(r.blob); const c = document.createElement('canvas'); c.width = im.naturalWidth || im.width; c.height = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0); return {r, c}; };
       for (const r of await DB.listPhotos(shown)) { const it = el('div', {class:'fitem'});
         it.appendChild(el('img', {src:r.thumb, alt:''}));
         it.appendChild(el('div', {class:'nm'}, new Date(r.at).toLocaleString('ko-KR', {month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit'})));
         it.appendChild(btn('다시 인쇄', async () => { const x = await loadCv(r.id); if (x) printFrame(x.c, {Wmm:x.r.Wmm, Hmm:x.r.Hmm}, 1); }, 'btn dark'));
-        it.appendChild(btn('사진 저장', async () => { const x = await DB.getPhoto(r.id); if (!x) return; const a = el('a', {href:URL.createObjectURL(x.blob), download:`네컷_${new Date(x.at).toISOString().slice(0,16).replace(/[-:T]/g, '')}.jpg`}); document.body.appendChild(a); a.click(); a.remove(); }));
+        it.appendChild(btn('사진 저장', async () => { const x = await DB.getPhoto(r.id); if (x) saveFile(x.blob, `네컷_${new Date(x.at).toISOString().slice(0,16).replace(/[-:T]/g, '')}.jpg`); }));
         rl.appendChild(it); }
       const more = el('div', {class:'row'});
       if (total > shown) more.appendChild(btn(`더 보기 (${total - shown}장 더 있어요)`, () => { PH.more = shown + 48; this.render(); }));
