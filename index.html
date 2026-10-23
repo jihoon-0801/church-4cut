@@ -591,9 +591,19 @@ const defaultFrames = () => [
 
 /* ================= 저장소 (이 기기 안에만) ================= */
 const DB = { db:null,
-  async open(){ try { this.db = await new Promise((res, rej) => { const r = indexedDB.open('church4cut', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); } catch(e) { this.db = null; } },
+  async open(){ try { this.db = await new Promise((res, rej) => { const r = indexedDB.open('church4cut', 2); r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('kv')) d.createObjectStore('kv'); if (!d.objectStoreNames.contains('photos')) d.createObjectStore('photos', {keyPath:'id'}); }; r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); } catch(e) { this.db = null; } },
   get(k){ return new Promise(res => { if (!this.db) return res(null); try { const q = this.db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result ?? null); q.onerror = () => res(null); } catch(e) { res(null); } }); },
   set(k, v){ return new Promise(res => { if (!this.db) return res(); try { const tx = this.db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = () => res(); tx.onerror = () => res(); } catch(e) { res(); } }); },
+  // 완성 사진 기록: {id(시각), at, name, Wmm, Hmm, thumb, blob}
+  ph(mode, fn){ return new Promise(res => { if (!this.db) return res(null); try { const tx = this.db.transaction('photos', mode); const r = fn(tx.objectStore('photos'), res); tx.oncomplete = () => res(r && r.result !== undefined ? r.result : null); tx.onerror = () => res(null); } catch(e) { res(null); } }); },
+  addPhoto(p){ return this.ph('readwrite', st => st.put(p)); },
+  getPhoto(id){ return this.ph('readonly', st => st.get(id)); },
+  countPhotos(){ return this.ph('readonly', st => st.count()); },
+  clearPhotos(){ return this.ph('readwrite', st => st.clear()); },
+  listPhotos(limit){ return new Promise(res => { if (!this.db) return res([]); const out = [];
+    try { const q = this.db.transaction('photos').objectStore('photos').openCursor(null, 'prev');
+      q.onsuccess = () => { const c = q.result; if (!c || out.length >= limit) return res(out); const v = c.value; out.push({id:v.id, at:v.at, name:v.name, thumb:v.thumb}); c.continue(); };
+      q.onerror = () => res(out); } catch(e) { res(out); } }); },
 };
 function merge(base, over){ if (!over || typeof over !== 'object' || Array.isArray(over)) return over ?? base; const o = {...base}; for (const k of Object.keys(over)) o[k] = (base && typeof base[k] === 'object' && base[k] && !Array.isArray(base[k])) ? merge(base[k], over[k]) : over[k]; return o; }
 await DB.open();
@@ -1282,7 +1292,6 @@ $('#decoDone').addEventListener('click', () => { Deco.sel = -1; go('final'); });
 
 /* ---------- 완성 ---------- */
 const Final = { blob:null, canvas:null, idle:null, left:0, token:0, copies:1 };
-const RECENT = [];   // 최근 완성 사진 (관리자에서 다시 인쇄, 앱을 다시 켜면 비워짐)
 async function makeVideo(tk){
   const fr = sess.frame; const clips = sess.chosen.map(i => sess.shots[i] && sess.shots[i].clip);
   if (!REC_MIME || !clips.some(Boolean)) return null;
@@ -1317,7 +1326,9 @@ SC.final = {
     Final.blob = await new Promise(r => Final.canvas.toBlob(r, 'image/jpeg', .92));
     $('#finalImg').src = URL.createObjectURL(Final.blob);
     S.count = (S.count || 0) + 1; save();
-    RECENT.unshift({canvas:Final.canvas, frame:fr, at:new Date()}); RECENT.length = Math.min(RECENT.length, 10);
+    { const tc = document.createElement('canvas'), k = 240 / Final.canvas.height; tc.width = Math.round(Final.canvas.width*k); tc.height = 240;   // 관리자에서 다시 인쇄하도록 기기에 기록
+      tc.getContext('2d').drawImage(Final.canvas, 0, 0, tc.width, tc.height);
+      DB.addPhoto({id:Date.now(), at:Date.now(), name:fr.name, Wmm:fr.Wmm, Hmm:fr.Hmm, thumb:tc.toDataURL('image/jpeg', .7), blob:Final.blob}); }
     Final.printing = false; this.copies(); this.resetIdle();
     const qb = $('#qrBox'), qa = $('#qrArea'), msg = $('#qrMsg'); qa.innerHTML = '';
     if (!(S.qr.cloud && S.qr.preset)) { qb.hidden = true; return; }
@@ -1395,6 +1406,7 @@ async function printFrame(frameCv, fr, copies){
 $('#printBtn').addEventListener('click', () => { Final.printing = true; Final.printAt = Date.now(); SC.final.resetIdle(); printFrame(Final.canvas, sess.frame, Final.copies); });
 
 /* ================= 관리자 ================= */
+const PH = { more:0, clr:0 };   // 관리자 사진 기록 목록 상태
 const Pin = { v:'' };
 function openPin(){ Pin.v = ''; drawPin(); $('#pinModal').hidden = false; }
 function drawPin(){ $$('#pinDots i').forEach((d, i) => d.classList.toggle('on', i < Pin.v.length)); }
@@ -1549,14 +1561,19 @@ SC.admin = {
       off.appendChild(num('위아래 위치 보정 (mm, + 아래)', () => P.offY, v => P.offY = v, -10, 10, .5));
       p.appendChild(grp('위치 맞추기', '시험 인쇄해 보고 한쪽으로 치우치면 보정 값을 바꿔요.', off,
         btn('시험 인쇄', async () => { const fr = FRAMES.find(f => f.enabled) || FRAMES[0]; await ensureImgs(fr); printFrame(frameCanvas(fr, 2, {numbers:true}), fr, 1); }, 'btn dark')));
-      const rl = el('div', {class:'flist'});
-      RECENT.forEach(r => { const it = el('div', {class:'fitem'});
-        it.appendChild(el('img', {src:r.canvas.toDataURL('image/jpeg', .6), alt:''}));
-        it.appendChild(el('div', {class:'nm'}, r.at.toLocaleTimeString('ko-KR', {hour:'numeric', minute:'2-digit'})));
-        it.appendChild(btn('다시 인쇄', () => printFrame(r.canvas, r.frame, 1), 'btn dark'));
-        rl.appendChild(it); });
-      p.appendChild(grp('최근 사진 다시 인쇄', '인쇄가 취소됐거나 한 장 더 필요할 때 여기서 다시 뽑아요. 최근 10장까지 보이고, 앱을 껐다 켜면 비워져요.',
-        RECENT.length ? rl : el('p', {class:'small'}, '아직 만든 사진이 없어요.')));
+      const rl = el('div', {class:'flist'}), total = await DB.countPhotos() || 0, shown = PH.more || 24;
+      const loadCv = async id => { const r = await DB.getPhoto(id); if (!r) return null; const im = await fileToImage(r.blob); const c = document.createElement('canvas'); c.width = im.naturalWidth || im.width; c.height = im.naturalHeight || im.height; c.getContext('2d').drawImage(im, 0, 0); return {r, c}; };
+      for (const r of await DB.listPhotos(shown)) { const it = el('div', {class:'fitem'});
+        it.appendChild(el('img', {src:r.thumb, alt:''}));
+        it.appendChild(el('div', {class:'nm'}, new Date(r.at).toLocaleString('ko-KR', {month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit'})));
+        it.appendChild(btn('다시 인쇄', async () => { const x = await loadCv(r.id); if (x) printFrame(x.c, {Wmm:x.r.Wmm, Hmm:x.r.Hmm}, 1); }, 'btn dark'));
+        it.appendChild(btn('사진 저장', async () => { const x = await DB.getPhoto(r.id); if (!x) return; const a = el('a', {href:URL.createObjectURL(x.blob), download:`네컷_${new Date(x.at).toISOString().slice(0,16).replace(/[-:T]/g, '')}.jpg`}); document.body.appendChild(a); a.click(); a.remove(); }));
+        rl.appendChild(it); }
+      const more = el('div', {class:'row'});
+      if (total > shown) more.appendChild(btn(`더 보기 (${total - shown}장 더 있어요)`, () => { PH.more = shown + 48; this.render(); }));
+      if (total) more.appendChild(btn('기록 모두 지우기', () => { const now = Date.now(); if (now - (PH.clr || 0) > 4000) { PH.clr = now; toast('한 번 더 누르면 사진 기록이 모두 지워져요', 4000); return; } DB.clearPhotos().then(() => { toast('사진 기록을 지웠어요'); this.render(); }); }));
+      p.appendChild(grp(`만든 사진 기록 (${total}장)`, '손님이 만든 사진이 이 기기에 모두 남아요. 인쇄가 취소됐거나 한 장 더 필요할 때 여기서 다시 뽑아요. 앱을 껐다 켜도 남아 있고, 행사가 끝나면 지울 수 있어요.',
+        total ? rl : el('p', {class:'small'}, '아직 만든 사진이 없어요.'), more));
       p.appendChild(el('div', {class:'help'}, '<b>태블릿에서 CP1500으로 인쇄하기</b><ol><li>CP1500과 태블릿을 같은 와이파이에 연결해요 (프린터 메뉴의 Wi-Fi 설정).</li><li>안드로이드는 Play 스토어에서 <b>Canon Print Service</b> 또는 <b>Mopria 인쇄 서비스</b>를 설치하고 켜요. 아이패드는 AirPrint로 바로 돼요.</li><li>인쇄 창에서 프린터를 CP1500으로, 용지를 <b>엽서(100×148mm)</b>로, 여백 없음을 골라요.</li></ol>'));
     }
     if (atab === 'qr') {
