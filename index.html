@@ -1395,7 +1395,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-23 c';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-23 d';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -1407,6 +1407,8 @@ async function printFrame(frameCv, fr, copies){
   if (APP && S.print.direct !== false) {
     toast('프린터로 보내는 중이에요…', 4000);
     const r = await booth('print', await blobB64(blob), copies, S.print.paperW, S.print.paperH, S.print.ipp || '');
+    const when = new Date().toLocaleTimeString('ko-KR', {hour:'numeric', minute:'2-digit'});
+    S.print.last = r.ok ? `${when} 바로 인쇄 성공` : `${when} 실패: ${r.msg}`; save();
     if (r.ok) { if (r.url && r.url !== S.print.ipp) { S.print.ipp = r.url; save(); } toast('프린터로 보냈어요. 사진이 나올 때까지 잠시 기다려 주세요.', 5000); return; }
     toast(`바로 인쇄하지 못했어요 (${r.msg}). 인쇄 화면을 열게요.`, 7000);
   }
@@ -1589,6 +1591,7 @@ SC.admin = {
             if (!r.ok || !r.list.length) { found.appendChild(el('span', {class:'small'}, '프린터를 못 찾았어요. 프린터와 태블릿이 같은 와이파이인지 확인해요.')); return; }
             r.list.forEach(x => found.appendChild(btn(`${x.name} 쓰기`, () => { S.print.ipp = x.url; save(); toast(`${x.name}(으)로 인쇄해요`); this.render(); }))); }),
           found,
+          S.print.last ? el('p', {class:'small', style:'font-weight:700'}, '마지막 바로 인쇄: ' + esc(S.print.last)) : null,
           '<span class="small">바로 인쇄가 안 되면 저절로 안드로이드 인쇄 화면이 열려요. 위 "시험 인쇄"로 먼저 확인해 보세요.</span>'));
       } else {
         p.appendChild(grp('확인 화면 없이 바로 인쇄하려면', `<span class="small">안드로이드 태블릿에 <b>교회 인생네컷 앱</b>을 설치해서 열면 인쇄 확인 화면 없이 프린터로 바로 나가요. 태블릿에서 <a href="${APK_URL}">앱 내려받기</a>를 눌러 설치해요.</span>`));
