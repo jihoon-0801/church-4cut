@@ -1316,7 +1316,7 @@ SC.final = {
     Final.blob = await new Promise(r => Final.canvas.toBlob(r, 'image/jpeg', .92));
     $('#finalImg').src = URL.createObjectURL(Final.blob);
     S.count = (S.count || 0) + 1; save();
-    this.copies(); this.resetIdle();
+    Final.printing = false; this.copies(); this.resetIdle();
     const qb = $('#qrBox'), qa = $('#qrArea'), msg = $('#qrMsg'); qa.innerHTML = '';
     if (!(S.qr.cloud && S.qr.preset)) { qb.hidden = true; return; }
     qb.hidden = false;
@@ -1341,9 +1341,11 @@ SC.final = {
   leave(){ Final.token++; },
   copies(){ const max = Math.max(1, S.print.maxCopies); Final.copies = Math.min(Math.max(1, Final.copies), max); $('#cpNum').textContent = Final.copies;
     const per = sheetLayout(sess.frame).n; $('#cpMsg').textContent = per > 1 ? `용지 1장에 ${per}개씩 나와요. 잘라서 나눠 가져요.` : '용지 1장에 1개씩 나와요.'; },
-  resetIdle(){ Step.start(S.idleSec, () => go('home')); },
+  // 인쇄를 누른 뒤에는 출력이 끝날 때까지 넉넉히 기다려요 (중간에 처음 화면으로 가면 안드로이드가 인쇄를 취소함)
+  resetIdle(){ Step.start(Final.printing ? Math.max(S.idleSec, 300) : S.idleSec, () => { if (document.hidden) this.resetIdle(); else go('home'); }); },
 };
 $('#final').addEventListener('pointerdown', () => { if (cur === 'final') SC.final.resetIdle(); });
+['visibilitychange', 'afterprint', 'focus'].forEach(ev => (ev === 'visibilitychange' ? document : window).addEventListener(ev, () => { if (cur === 'final' && !document.hidden) SC.final.resetIdle(); }));
 $('#cpMinus').addEventListener('click', () => { Final.copies--; SC.final.copies(); });
 $('#cpPlus').addEventListener('click', () => { Final.copies++; SC.final.copies(); });
 $('#finalHome').addEventListener('click', () => go('home'));
@@ -1380,7 +1382,7 @@ async function printFrame(frameCv, fr, copies){
   if (framed) toast('미리보기 화면에서는 인쇄 창이 열리지 않아요. 앱 주소로 직접 열면 돼요.', 5000);
   window.print();
 }
-$('#printBtn').addEventListener('click', () => { SC.final.resetIdle(); printFrame(Final.canvas, sess.frame, Final.copies); });
+$('#printBtn').addEventListener('click', () => { Final.printing = true; SC.final.resetIdle(); printFrame(Final.canvas, sess.frame, Final.copies); });
 
 /* ================= 관리자 ================= */
 const Pin = { v:'' };
