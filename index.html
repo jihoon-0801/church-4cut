@@ -1689,6 +1689,34 @@ const Sync = {
   async pack(str){ if (!window.CompressionStream) return new Blob([str]); return new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).blob(); },
   async unpack(blob){ const b = new Uint8Array(await blob.slice(0, 2).arrayBuffer()); if (b[0] === 0x1f && b[1] === 0x8b) return new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text(); return blob.text(); },
   note(m){ this.msg = m; const e = $('#syncMsg'); if (e) e.textContent = m; },
+  // 프레임·배경 그림은 하나씩 따로 올려요 (한 파일에 다 넣으면 10MB를 넘어요). 같은 그림은 한 번만 올라가요.
+  walk(o, fn){ if (Array.isArray(o)) o.forEach((v, i) => typeof v === 'string' ? fn(v, x => o[i] = x) : this.walk(v, fn)); else if (o && typeof o === 'object') for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'string') fn(v, x => o[k] = x); else this.walk(v, fn); } },
+  async liftImages(obj){
+    const list = []; this.walk(obj, v => { if (v.startsWith('data:image/') && !list.includes(v)) list.push(v); });
+    const map = new Map(); S.sync.imgs = S.sync.imgs || {};
+    for (let i = 0; i < list.length; i++) {
+      const d = list[i], h = await this.hash(d);
+      if (!S.sync.imgs[h]) {
+        this.note(`그림 올리는 중이에요 (${i + 1}/${list.length})`);
+        try { S.sync.imgs[h] = (await cloudUpload(d, 'image', `c4sync/img/${h}`)).secure_url; }
+        catch(e) { if (/exist/i.test(e.message)) S.sync.imgs[h] = `https://res.cloudinary.com/${encodeURIComponent(this.cloud())}/image/upload/c4sync/img/${h}`; else throw new Error('그림을 올리지 못했어요: ' + e.message); }
+        save();
+      }
+      map.set(d, S.sync.imgs[h]);
+    }
+    return map;
+  },
+  async dropImages(obj){
+    const urls = []; this.walk(obj, v => { if (v.startsWith('c4img:') && !urls.includes(v)) urls.push(v); });
+    const got = new Map();
+    for (let i = 0; i < urls.length; i++) {
+      this.note(`그림 받는 중이에요 (${i + 1}/${urls.length})`);
+      const r = await fetch(urls[i].slice(6)); if (!r.ok) throw new Error('그림 받기 실패 ' + r.status);
+      const b = await r.blob(); got.set(urls[i], await new Promise(res => { const f = new FileReader(); f.onload = () => res(f.result); f.readAsDataURL(b); }));
+      S.sync.imgs = S.sync.imgs || {}; S.sync.imgs[await this.hash(got.get(urls[i]))] = urls[i].slice(6);
+    }
+    this.walk(obj, (v, set) => { if (got.has(v)) set(got.get(v)); });
+  },
   // 이 기기에서 바뀐 게 있으면 올려요
   async push(force){
     if (!S.sync.code || this.busy) return;
@@ -1698,8 +1726,10 @@ const Sync = {
       const str = JSON.stringify(this.shared()), h = await this.hash(str);
       if (!force && h === S.sync.hash) return;
       this.note('다른 기기와 맞추는 중이에요…');
-      const n = (await this.latest()) + 1, blob = await this.pack(str);
-      if (blob.size > 9.5e6) throw new Error('프레임 그림이 너무 커요 (10MB 넘음). 안 쓰는 프레임을 지워 주세요');
+      const imgs = await this.liftImages(this.shared());
+      const slim = JSON.stringify(this.shared(), (k, v) => typeof v === 'string' && imgs.has(v) ? 'c4img:' + imgs.get(v) : v);
+      const n = (await this.latest()) + 1, blob = await this.pack(slim);
+      if (blob.size > 9.5e6) throw new Error('설정 파일이 너무 커요 (10MB 넘음)');
       const j = await cloudUpload(new File([blob], 'sync.txt'), 'raw', `c4sync/${S.sync.code}/${n}`);
       const want = `c4sync/${S.sync.code}/${n}`; if (![want, want + '.txt', want + '.gz'].includes(j.public_id)) throw new Error('Cloudinary 업로드 설정이 파일 이름을 바꿔요 (' + j.public_id + ')');
       this.found[S.sync.code + '/' + n] = (j.public_id.match(/\.(txt|gz)$/) || [, 'txt'])[1];
@@ -1722,6 +1752,7 @@ const Sync = {
       this.note('새 내용을 받는 중이에요…');
       const r = await fetch(this.url(n), {cache:'no-store'}); if (!r.ok) throw new Error('받기 실패 ' + r.status);
       const str = await this.unpack(await r.blob()), j = JSON.parse(str);
+      await this.dropImages(j);
       const keep = {cam:S.cam, sync:S.sync, count:S.count};
       S = merge(clone(DEFAULT_SETTINGS), j.settings); Object.assign(S, keep);
       if (Array.isArray(j.frames)) FRAMES = j.frames; if (Array.isArray(j.stickers)) USTK = j.stickers;
@@ -1811,7 +1842,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 p';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-25 a';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
