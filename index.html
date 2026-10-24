@@ -1029,6 +1029,26 @@ function drawIcon(name){
     }
   });
 }
+// 동탄연세중앙교회 건물 (사진을 보고 단순하게 그림): 가운데 높은 탑에 검은 십자가, 양옆 세로 창, 오른쪽 긴 날개 건물
+function churchSticker(){
+  return mk(400, 270, x => {
+    x.lineJoin = 'round'; x.lineCap = 'round'; x.lineWidth = 6; x.strokeStyle = OUT;
+    const box = (X, Y, w, h, c) => { x.beginPath(); x.rect(X, Y, w, h); x.fillStyle = c; x.fill(); x.stroke(); };
+    const win = (X, Y, w, h, c = '#2b3440') => { x.fillStyle = c; x.fillRect(X, Y, w, h); };
+    const wall = '#f3efe6', wall2 = '#e6e0d3';
+    box(268, 92, 122, 140, wall2); for (let i = 0; i < 4; i++) win(282 + i*26, 150, 14, 7); for (let i = 0; i < 5; i++) win(278 + i*22, 178, 8, 14); x.fillStyle = '#c9ced6'; x.fillRect(268, 88, 122, 6);
+    box(12, 98, 62, 134, wall2); win(22, 160, 9, 14); win(40, 160, 9, 14);
+    box(118, 92, 82, 140, wall); for (const y of [108, 140]) win(128, y, 34, 11, '#4f7fb0'); for (const y of [108, 140, 172]) win(174, y, 9, 13);
+    x.fillStyle = '#c9ced6'; x.fillRect(118, 86, 82, 7);
+    box(64, 52, 56, 180, wall); win(82, 66, 9, 150);
+    box(196, 40, 84, 192, wall); win(206, 56, 8, 162); win(262, 56, 8, 162);
+    x.fillStyle = OUT; x.fillRect(234, 62, 7, 66); x.fillRect(220, 78, 35, 6);
+    x.fillStyle = '#b07a4a'; x.fillRect(150, 205, 30, 27); x.strokeRect(150, 205, 30, 27);
+    x.beginPath(); x.moveTo(4, 234); x.lineTo(396, 234); x.lineWidth = 8; x.stroke(); x.lineWidth = 6;
+    [[44,220,12],[132,218,13],[192,220,12],[290,220,12],[372,220,12]].forEach(([a,b,r]) => {
+      x.fillStyle = '#7a5a3a'; x.fillRect(a-3, b+r-4, 6, 234-(b+r-4)); x.beginPath(); x.arc(a, b, r, 0, Math.PI*2); x.fillStyle = '#6cc070'; x.fill(); x.stroke(); });
+  });
+}
 let STK = {}; let STK_CATS = [];
 function buildStickers(){
   STK = {}; const cats = {};
@@ -1124,7 +1144,7 @@ function buildStickers(){
   add('새가족', 'n29', drawIcon('heartCross'));
   // 그림
   ['cross','crossGold','heartCross','dove','lamb','church','bible','openBible','candle','star','crown','fish','bread','basket','grapes','cup','olive','rainbow','sun','cloud','note','mic','harp','trumpet','wings','lily','ark','lamp','staff','globe']
-    .forEach(n => add('그림', 'ic_' + n, drawIcon(n)));
+    .forEach(n => add('그림', 'ic_' + n, n === 'church' ? churchSticker() : drawIcon(n)));
   // 성탄절
   add('성탄절', 's0', Bu('예수님\n탄생', '#ffe14a'));
   add('성탄절', 's1', Rb('성탄을 축하합니다', '#fff1a8'));
@@ -1779,7 +1799,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 k';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 l';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
