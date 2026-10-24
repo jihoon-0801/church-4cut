@@ -1456,7 +1456,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 b';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 c';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -1594,7 +1594,14 @@ SC.admin = {
       resRow.appendChild(el('span', {class:'small', id:'camRes'}, `카메라 화질: ${Cam.size() || '켜는 중'} · 화면이 멈추면 저절로 낮춰요`));
       resRow.appendChild(btn('화질 낮추기', async () => { await Cam.fix(); this.render(); }));
       resRow.appendChild(btn('가장 좋은 화질로', async () => { S.cam.res = 0; save(); await Cam.restart(); this.render(); }));
-      p.appendChild(grp('카메라', seg, camSel, resRow, el('div', {class:'cam-prev'}, '<canvas id="adminCam"></canvas>'),
+      let usbDiag = null;
+      if (APP && APP.usbDump) {   // 웹캠이 목록에 안 나올 때 원인 찾기
+        const out = el('pre', {class:'small', style:'white-space:pre-wrap;margin:0'});
+        usbDiag = el('div', {class:'ed-col'});
+        usbDiag.appendChild(btn('USB 장치 다시 찾기', () => { let t = ''; try { t = APP.usbDump(); } catch(e) { t = String(e); } out.textContent = t; this.fillCams(); }));
+        usbDiag.appendChild(out);
+      }
+      p.appendChild(grp('카메라', seg, camSel, resRow, usbDiag, el('div', {class:'cam-prev'}, '<canvas id="adminCam"></canvas>'),
         '<span class="small">카메라 각도와 크기를 맞추는 화면이에요. 실제 촬영 때는 손님이 고른 프레임 칸 모양(네모, 동그라미, 하트)으로 보여요.</span>',
         tog('거울처럼 좌우 반전', () => c.mirror, v => c.mirror = v),
         rng('확대', () => c.zoom, v => c.zoom = v, 1, 2.5, .05, v => (+v).toFixed(1) + '×'),

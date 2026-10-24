@@ -54,8 +54,23 @@ final class UsbCam {
   synchronized List<UsbDevice> cameras() {
     ensureMonitor();
     List<UsbDevice> out = new ArrayList<>();
-    for (UsbDevice d : monitor.getDeviceList()) if (isCamera(d)) out.add(d);
+    for (UsbDevice d : usbManager().getDeviceList().values()) if (isCamera(d)) out.add(d);
     return out;
+  }
+
+  android.hardware.usb.UsbManager usbManager() { return (android.hardware.usb.UsbManager) ctx.getSystemService(Context.USB_SERVICE); }
+
+  /** 꽂힌 USB 장치를 모두 글로 보여줘요 (원인 찾기용) */
+  String dump() {
+    android.hardware.usb.UsbManager m = usbManager();
+    if (m == null) return "이 기기는 USB 장치 연결(USB 호스트)을 지원하지 않아요";
+    StringBuilder b = new StringBuilder();
+    for (UsbDevice d : m.getDeviceList().values()) {
+      b.append(String.format(java.util.Locale.US, "%s · %04x:%04x · class %d · 인터페이스", d.getProductName() == null ? "(이름 없음)" : d.getProductName(), d.getVendorId(), d.getProductId(), d.getDeviceClass()));
+      for (int i = 0; i < d.getInterfaceCount(); i++) b.append(' ').append(d.getInterface(i).getInterfaceClass());
+      b.append(isCamera(d) ? " · 카메라" : "").append(m.hasPermission(d) ? " · 허용됨" : "").append('\n');
+    }
+    return b.length() == 0 ? "꽂힌 USB 장치가 하나도 안 보여요" : b.toString().trim();
   }
 
   private synchronized void ensureMonitor() {

@@ -155,7 +155,7 @@ public class MainActivity extends Activity {
   }
 
   final class Bridge {
-    @JavascriptInterface public String version() { return "3"; }
+    @JavascriptInterface public String version() { return "4"; }
 
     /** USB 웹캠이 꽂혀 있는지 (이름 목록) */
     @JavascriptInterface public String uvcList() {
@@ -171,6 +171,8 @@ public class MainActivity extends Activity {
     }
 
     @JavascriptInterface public void uvcStop() { usb.stop(); }
+
+    @JavascriptInterface public String usbDump() { try { return usb.dump(); } catch (Exception e) { return "확인 실패: " + e; } }
 
     /** 확인 화면 없이 바로 인쇄. url이 비어 있으면 프린터를 찾아서 첫 번째로 보내요. */
     @JavascriptInterface public void print(String id, String b64, int copies, double wMm, double hMm, String url) {
