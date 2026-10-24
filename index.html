@@ -1007,6 +1007,10 @@ function drawIcon(name){
       case 'holly': [[-0.6],[0.6],[0]].forEach(([r], i) => { x.save(); x.translate(130,140); x.rotate(r + (i === 2 ? Math.PI : 0)); x.beginPath(); x.moveTo(0,0);
           for (let k = 0; k <= 4; k++) x.lineTo(-28 + (k%2)*10, -k*25); x.lineTo(0,-110); for (let k = 4; k >= 0; k--) x.lineTo(28 - (k%2)*10, -k*25); x.closePath(); fs('#3f9d58'); x.restore(); });
         [[115,140],[145,140],[130,165]].forEach(([a,b]) => { circ(a,b,18); fs('#ff4f4f'); }); break;
+      case 'stable': P([[40,120],[130,55],[220,120],[220,235],[40,235]]); fs('#c98a5a'); P([[25,128],[130,45],[235,128],[235,145],[130,68],[25,145]]); fs('#8a5a3a');
+        x.beginPath(); x.moveTo(95,235); x.lineTo(95,160); x.quadraticCurveTo(130,130,165,160); x.lineTo(165,235); fs('#3d2a1e');
+        x.beginPath(); x.moveTo(108,232); x.lineTo(152,232); x.lineTo(145,205); x.lineTo(115,205); x.closePath(); fs('#e8b830'); ell(130,200,16,10); fs('#ffffff');
+        star(130,22,20); fs('#ffd84a'); x.lineWidth = 4; [[100,30],[160,30],[130,0]].forEach(([a,b]) => { x.beginPath(); x.moveTo(130,22); x.lineTo(a,b); x.stroke(); }); break;
       case 'egg': ell(130,140,78,100); fs('#ffd0e0'); x.save(); ell(130,140,78,100); x.clip(); x.lineWidth = 12;
         [['#8fd3ff',110],['#ffe14a',150],['#b9f0c9',190]].forEach(([c,y]) => { x.beginPath(); for (let i = 0; i <= 8; i++) x.lineTo(40+i*23, y + (i%2 ? -12 : 12)); x.strokeStyle = c; x.stroke(); });
         x.restore(); x.lineWidth = 8; x.strokeStyle = OUT; ell(130,140,78,100); x.stroke(); break;
@@ -1122,8 +1126,8 @@ function buildStickers(){
   ['cross','crossGold','heartCross','dove','lamb','church','bible','openBible','candle','star','crown','fish','bread','basket','grapes','cup','olive','rainbow','sun','cloud','note','mic','harp','trumpet','wings','lily','ark','lamp','staff','globe']
     .forEach(n => add('그림', 'ic_' + n, drawIcon(n)));
   // 성탄절
-  add('성탄절', 's0', T('메리 크리스마스', {fill:'#ff5c5c'}));
-  add('성탄절', 's1', T('Merry Christmas', {font:'Jua', fill:'#4caf6a', size:100}));
+  add('성탄절', 's0', Bu('예수님\n탄생', '#ffe14a'));
+  add('성탄절', 's1', Rb('성탄을 축하합니다', '#fff1a8'));
   add('성탄절', 's2', Rb('기쁘다 구주 오셨네', '#ffd0dc'));
   add('성탄절', 's3', Bb('성탄 축하해요', '#fff3a0'));
   add('성탄절', 's4', Pl('예수님 생일 축하해요', {fill:'#ffb3c7', size:58}));
@@ -1134,7 +1138,11 @@ function buildStickers(){
   add('성탄절', 's9', T('Noel', {font:'Jua', fill:'#ffd84a', size:110}));
   add('성탄절', 's10', verseSticker('오늘날 다윗의 동네에\n너희를 위하여 구주가 나셨으니', '눅 2:11', '#fff3c4'));
   add('성탄절', 's11', verseSticker('지극히 높은 곳에서는\n하나님께 영광이요', '눅 2:14', '#e6f4ff'));
-  ['manger','angel','star','gift','gift2','bell','snow','snowman','stocking','candyCane','wreath','ornament','ornament2','santaHat','mitten','holly','lamb','crown']
+  add('성탄절', 's12', verseSticker('저희가 별을 보고\n가장 크게 기뻐하고 기뻐하더라', '마 2:10', '#fff3c4'));
+  add('성탄절', 's13', verseSticker('평강의 왕이라', '사 9:6', '#f1e8ff'));
+  add('성탄절', 's14', Bb('아기 예수님 환영해요', '#ffd0dc'));
+  add('성탄절', 's15', sparkleSticker());
+  ['manger','stable','angel','star','gift','gift2','dove','snow','snowman','stocking','mitten','holly','lamb','crown']
     .forEach((n, i) => add('성탄절', 'x' + i, drawIcon(n)));
   ['😍','🥰','😎','✌️','🙏','💖','⭐','🎉','🌸','👑','🐑','🕊️'].forEach((e, i) => add('이모지', 'e'+i, emojiSticker(e)));
   USTK.forEach(u => { const e = getImg(u.src); add('우리 교회', 'u_'+u.id, e.im); });
@@ -1771,7 +1779,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 j';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 k';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
