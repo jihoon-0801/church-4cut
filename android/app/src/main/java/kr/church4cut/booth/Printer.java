@@ -108,36 +108,47 @@ final class Printer {
     boolean canCol = a.has("job-creation-attributes-supported", "media-col") || !a.get("media-col-supported").isEmpty();
     boolean borderless = a.has("media-left-margin-supported", 0) && a.has("media-top-margin-supported", 0);
 
-    String fmt; byte[] doc;
-    if (a.has("document-format-supported", "image/jpeg")) {
-      fmt = "image/jpeg"; doc = jpeg;
-    } else if (a.has("document-format-supported", "image/pwg-raster")) {
-      int dpi = 300;
-      List<Object> rs = a.get("pwg-raster-document-resolution-supported");
-      if (!rs.isEmpty() && !rs.contains("300x300")) dpi = Integer.parseInt(String.valueOf(rs.get(0)).split("x")[0]);
-      int w = (int) Math.round(sw / 25.4 * dpi), h = (int) Math.round(sh / 25.4 * dpi);
-      Bitmap src = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.length);
-      Bitmap bm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-      Canvas c = new Canvas(bm); c.drawColor(Color.WHITE);
-      c.drawBitmap(src, null, new Rect(0, 0, w, h), new Paint(Paint.FILTER_BITMAP_FLAG));
-      src.recycle();
-      int[] px = new int[w * h]; bm.getPixels(px, 0, w, 0, 0, w, h); bm.recycle();
-      for (int i = 0; i < px.length; i++) px[i] &= 0xffffff;
-      fmt = "image/pwg-raster";
-      doc = Ipp.pwgRaster(px, w, h, dpi, mediaKw, sw, sh, a.has("pwg-raster-document-type-supported", "srgb_8"));
-    } else {
-      throw new IOException("이 프린터가 받는 형식을 아직 못 보내요: " + a.get("document-format-supported"));
-    }
+    // 형식 목록을 안 알려 주는 프린터도 있어서, 그럴 땐 JPEG → PWG 래스터 순서로 직접 보내 봐요
+    List<String> fmts = new ArrayList<>();
+    List<Object> sup = a.get("document-format-supported");
+    if (sup.isEmpty() || sup.contains("image/jpeg")) fmts.add("image/jpeg");
+    if (sup.isEmpty() || sup.contains("image/pwg-raster")) fmts.add("image/pwg-raster");
+    if (fmts.isEmpty()) throw new IOException("이 프린터가 받는 형식을 아직 못 보내요: " + sup);
 
-    String note = "";
-    for (int i = 0; i < Math.max(1, copies); i++) {
-      Ipp.Res r = null;
-      if (canCol) r = Ipp.send(uri, job(uri, fmt, a, mediaKw, sw, sh, true, borderless), doc, 120000);
-      if (r == null || !r.ok()) r = Ipp.send(uri, job(uri, fmt, a, mediaKw, sw, sh, false, false), doc, 120000);
-      if (!r.ok()) throw new IOException(String.format(Locale.US, "프린터가 인쇄를 받지 않았어요 (0x%04x %s)", r.status, r.first("status-message")));
-      note = r.first("job-id");
+    String note = null, why = "";
+    for (String fmt : fmts) {
+      byte[] doc = "image/jpeg".equals(fmt) ? jpeg : pwg(a, jpeg, sw, sh, mediaKw);
+      try {
+        for (int i = 0; i < Math.max(1, copies); i++) {
+          Ipp.Res r = null;
+          if (canCol) r = Ipp.send(uri, job(uri, fmt, a, mediaKw, sw, sh, true, borderless), doc, 120000);
+          if (r == null || !r.ok()) r = Ipp.send(uri, job(uri, fmt, a, mediaKw, sw, sh, false, false), doc, 120000);
+          if (!r.ok()) throw new IOException(String.format(Locale.US, "프린터가 %s 인쇄를 받지 않았어요 (0x%04x %s)", fmt.substring(6), r.status, r.first("status-message")));
+          note = r.first("job-id");
+        }
+        return note;
+      } catch (IOException e) {
+        if (note != null) throw e;   // 이미 한 장 나갔으면 다른 형식으로 또 보내지 않아요
+        why += (why.isEmpty() ? "" : " / ") + e.getMessage();
+      }
     }
-    return note;
+    throw new IOException(why + " · 프린터 정보 " + a.attrs.size() + "개");
+  }
+
+  private static byte[] pwg(Ipp.Res a, byte[] jpeg, double sw, double sh, String mediaKw) throws IOException {
+    int dpi = 300;
+    List<Object> rs = a.get("pwg-raster-document-resolution-supported");
+    if (!rs.isEmpty() && !rs.contains("300x300")) dpi = Integer.parseInt(String.valueOf(rs.get(0)).split("x")[0]);
+    int w = (int) Math.round(sw / 25.4 * dpi), h = (int) Math.round(sh / 25.4 * dpi);
+    Bitmap src = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.length);
+    Bitmap bm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+    Canvas c = new Canvas(bm); c.drawColor(Color.WHITE);
+    c.drawBitmap(src, null, new Rect(0, 0, w, h), new Paint(Paint.FILTER_BITMAP_FLAG));
+    src.recycle();
+    int[] px = new int[w * h]; bm.getPixels(px, 0, w, 0, 0, w, h); bm.recycle();
+    for (int i = 0; i < px.length; i++) px[i] &= 0xffffff;
+    List<Object> types = a.get("pwg-raster-document-type-supported");
+    return Ipp.pwgRaster(px, w, h, dpi, mediaKw, sw, sh, types.isEmpty() || types.contains("srgb_8"));
   }
 
   private static byte[] job(String uri, String fmt, Ipp.Res a, String mediaKw, double sw, double sh, boolean col, boolean borderless) throws IOException {

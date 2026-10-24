@@ -141,10 +141,26 @@ public final class Ipp {
         .str(V_URI, "printer-uri", uri.startsWith("http://") ? "ipp://" + uri.substring(7) : uri);
   }
 
+  static final String[] NEED = {"document-format-supported", "media-supported", "media-col-supported", "media-left-margin-supported",
+      "media-top-margin-supported", "job-creation-attributes-supported", "pwg-raster-document-resolution-supported",
+      "pwg-raster-document-type-supported", "print-color-mode-supported", "print-scaling-supported", "printer-make-and-model"};
+
+  /** 프린터마다 묻는 방식을 다르게 받아들여서, 형식 목록이 올 때까지 몇 가지로 물어봐요 */
   public static Res printerAttributes(String uri) throws IOException {
-    Req q = base(OP_GET_PRINTER_ATTRIBUTES, 1, uri).str(V_NAME, "requesting-user-name", "booth")
-        .strs(V_KEYWORD, "requested-attributes", "printer-description", "media-col-database");
-    return send(uri, q.bytes(), null, 15000);
+    Res best = null; IOException err = null;
+    for (int way = 0; way < 4; way++) {
+      try {
+        Req q = base(OP_GET_PRINTER_ATTRIBUTES, 1 + way, uri).str(V_NAME, "requesting-user-name", "booth");
+        if (way == 0) q.strs(V_KEYWORD, "requested-attributes", NEED);
+        else if (way == 1) q.strs(V_KEYWORD, "requested-attributes", "all");
+        else if (way == 2) q.strs(V_KEYWORD, "requested-attributes", "printer-description");
+        Res r = send(uri, q.bytes(), null, 15000);
+        if (best == null || (r.ok() && r.attrs.size() > best.attrs.size())) best = r;
+        if (r.ok() && !r.get("document-format-supported").isEmpty()) return r;
+      } catch (IOException e) { err = e; }
+    }
+    if (best == null) throw err;
+    return best;
   }
 
   /** PWG 래스터(image/pwg-raster) 한 장 만들기. 픽셀은 0xRRGGBB, 줄마다 압축해요. */
