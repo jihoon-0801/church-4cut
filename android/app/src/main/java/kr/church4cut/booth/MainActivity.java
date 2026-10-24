@@ -21,7 +21,15 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.ServiceWorkerClient;
+import android.webkit.ServiceWorkerController;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebViewClient;
+
+import java.io.ByteArrayInputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.json.JSONObject;
 
@@ -35,6 +43,7 @@ public class MainActivity extends Activity {
   static final int REQ_CAMERA = 1, REQ_FILE = 2;
 
   WebView web;
+  UsbCam usb;
   PermissionRequest pendingPerm;
   ValueCallback<Uri[]> pendingFile;
 
@@ -53,7 +62,15 @@ public class MainActivity extends Activity {
     s.setAllowFileAccess(false);
     s.setUserAgentString(s.getUserAgentString() + " Church4cutApp/1");
 
-    web.setWebViewClient(new WebViewClient());
+    usb = new UsbCam(this);
+    web.setWebViewClient(new WebViewClient() {
+      @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) { return usbFrame(r.getUrl()); }
+    });
+    if (Build.VERSION.SDK_INT >= 24) {
+      ServiceWorkerController.getInstance().setServiceWorkerClient(new ServiceWorkerClient() {
+        @Override public WebResourceResponse shouldInterceptRequest(WebResourceRequest r) { return usbFrame(r.getUrl()); }
+      });
+    }
     web.setWebChromeClient(new WebChromeClient() {
       @Override public void onPermissionRequest(PermissionRequest r) {
         runOnUiThread(() -> {
@@ -75,6 +92,21 @@ public class MainActivity extends Activity {
     web.addJavascriptInterface(new Bridge(), "BoothApp");
     if (b != null) web.restoreState(b); else web.loadUrl(SITE);
   }
+
+  /** 사이트가 __uvc/frame?s=마지막번호 로 USB 웹캠 장면을 가져가요 */
+  WebResourceResponse usbFrame(Uri u) {
+    if (u == null || u.getPath() == null || !u.getPath().endsWith("/__uvc/frame")) return null;
+    long after = -1;
+    try { after = Long.parseLong(u.getQueryParameter("s")); } catch (Exception ignored) {}
+    Object[] f = usb.frame(after, 1000);
+    Map<String, String> hd = new HashMap<>();
+    hd.put("Cache-Control", "no-store");
+    if (f == null) return new WebResourceResponse("image/jpeg", null, 204, "No Frame", hd, new ByteArrayInputStream(new byte[0]));
+    hd.put("X-Seq", String.valueOf(f[1]));
+    return new WebResourceResponse("image/jpeg", null, 200, "OK", hd, new ByteArrayInputStream((byte[]) f[0]));
+  }
+
+  @Override protected void onDestroy() { usb.stop(); super.onDestroy(); }
 
   @Override protected void onSaveInstanceState(Bundle o) { super.onSaveInstanceState(o); web.saveState(o); }
   @Override public void onWindowFocusChanged(boolean f) { super.onWindowFocusChanged(f); if (f) hideBars(); }
@@ -123,7 +155,22 @@ public class MainActivity extends Activity {
   }
 
   final class Bridge {
-    @JavascriptInterface public String version() { return "2"; }
+    @JavascriptInterface public String version() { return "3"; }
+
+    /** USB 웹캠이 꽂혀 있는지 (이름 목록) */
+    @JavascriptInterface public String uvcList() {
+      org.json.JSONArray a = new org.json.JSONArray();
+      try { for (android.hardware.usb.UsbDevice d : usb.cameras()) a.put(d.getProductName() == null ? "USB 웹캠" : d.getProductName()); } catch (Exception ignored) {}
+      return a.toString();
+    }
+
+    @JavascriptInterface public void uvcStart(String id, int w, int h) {
+      usb.start(w, h, (ok, msg, rw, rh) -> {
+        try { reply(id, new JSONObject().put("ok", ok).put("msg", msg).put("w", rw).put("h", rh)); } catch (Exception ignored) {}
+      });
+    }
+
+    @JavascriptInterface public void uvcStop() { usb.stop(); }
 
     /** 확인 화면 없이 바로 인쇄. url이 비어 있으면 프린터를 찾아서 첫 번째로 보내요. */
     @JavascriptInterface public void print(String id, String b64, int copies, double wMm, double hMm, String url) {

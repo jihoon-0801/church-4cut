@@ -24,3 +24,8 @@ android {
   }
   compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
+
+dependencies {
+  // 태블릿이 인식하지 못하는 USB 웹캠을 직접 여는 라이브러리 (UVC)
+  implementation 'com.herohan:UVCAndroid:1.0.13'
+}

@@ -1,0 +1,149 @@
+package kr.church4cut.booth;
+
+import android.content.Context;
+import android.graphics.ImageFormat;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
+import android.hardware.usb.UsbConstants;
+import android.hardware.usb.UsbDevice;
+import android.os.Handler;
+import android.os.HandlerThread;
+
+import com.serenegiant.usb.IFrameCallback;
+import com.serenegiant.usb.Size;
+import com.serenegiant.usb.USBMonitor;
+import com.serenegiant.usb.UVCCamera;
+import com.serenegiant.usb.UVCParam;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 태블릿이 USB 웹캠을 카메라로 인식하지 못해도, 앱이 웹캠(UVC)을 직접 열어요.
+ * 받은 장면은 JPEG로 바꿔 두고, 사이트가 __uvc/frame 주소로 한 장씩 가져가요.
+ */
+final class UsbCam {
+  interface Done { void done(boolean ok, String msg, int w, int h); }
+
+  private final Context ctx;
+  private final Handler h;
+  private USBMonitor monitor;
+  private UVCCamera cam;
+  private Done pending;
+  private int wantW = 1280, wantH = 720;
+
+  private final Object lock = new Object();
+  private byte[] jpeg;
+  private long seq;
+  private volatile boolean encoding;
+
+  UsbCam(Context ctx) {
+    this.ctx = ctx.getApplicationContext();
+    HandlerThread t = new HandlerThread("usbcam"); t.start();
+    h = new Handler(t.getLooper());
+  }
+
+  static boolean isCamera(UsbDevice d) {
+    if (d.getDeviceClass() == UsbConstants.USB_CLASS_VIDEO) return true;
+    for (int i = 0; i < d.getInterfaceCount(); i++) if (d.getInterface(i).getInterfaceClass() == UsbConstants.USB_CLASS_VIDEO) return true;
+    return false;
+  }
+
+  synchronized List<UsbDevice> cameras() {
+    ensureMonitor();
+    List<UsbDevice> out = new ArrayList<>();
+    for (UsbDevice d : monitor.getDeviceList()) if (isCamera(d)) out.add(d);
+    return out;
+  }
+
+  private synchronized void ensureMonitor() {
+    if (monitor != null) return;
+    monitor = new USBMonitor(ctx, new USBMonitor.OnDeviceConnectListener() {
+      @Override public void onAttach(UsbDevice d) {}
+      @Override public void onDetach(UsbDevice d) { if (cam != null && d.equals(cam.getDevice())) close(); }
+      @Override public void onDeviceOpen(UsbDevice d, USBMonitor.UsbControlBlock cb, boolean createNew) { h.post(() -> open(cb)); }
+      @Override public void onDeviceClose(UsbDevice d, USBMonitor.UsbControlBlock cb) {}
+      @Override public void onCancel(UsbDevice d) { finish(false, "웹캠 사용을 허용하지 않았어요", 0, 0); }
+    }, h);
+    monitor.register();
+  }
+
+  /** 웹캠 켜기. 처음에는 "허용할까요?" 창이 떠요. */
+  void start(int w, int hgt, Done done) {
+    h.post(() -> {
+      try {
+        close();
+        wantW = w; wantH = hgt; pending = done;
+        List<UsbDevice> list = cameras();
+        if (list.isEmpty()) { finish(false, "USB 웹캠을 찾지 못했어요. 허브와 선을 확인해 주세요", 0, 0); return; }
+        monitor.requestPermission(list.get(0));
+      } catch (Exception e) { finish(false, String.valueOf(e.getMessage()), 0, 0); }
+    });
+  }
+
+  private void finish(boolean ok, String msg, int w, int hgt) {
+    Done d = pending; pending = null;
+    if (d != null) d.done(ok, msg, w, hgt);
+  }
+
+  private void open(USBMonitor.UsbControlBlock cb) {
+    try {
+      UVCCamera c = new UVCCamera(new UVCParam(null, UVCCamera.getRecommendedPlatformQuirks()));
+      int r = c.open(cb);
+      if (r != 0) { c.destroy(); finish(false, "웹캠을 열지 못했어요 (" + r + ")", 0, 0); return; }
+      // 원하는 크기 이하에서 가장 큰 MJPEG 크기를 골라요 (MJPEG이 USB로 더 많이 보낼 수 있어요)
+      Size best = null;
+      List<Size> sizes = c.getSupportedSizeList();
+      if (sizes != null) for (Size s : sizes) {
+        if (s.width > wantW || s.height > wantH) continue;
+        boolean mj = s.type == UVCCamera.UVC_VS_FRAME_MJPEG, bmj = best != null && best.type == UVCCamera.UVC_VS_FRAME_MJPEG;
+        if (best == null || (mj && !bmj) || (mj == bmj && s.width * s.height > best.width * best.height)) best = s;
+      }
+      if (best != null) { try { c.setPreviewSize(best); } catch (Exception ignored) {} }
+      Size cur = c.getPreviewSize();
+      final int w = cur.width, hgt = cur.height;
+      c.setFrameCallback(new IFrameCallback() {
+        @Override public void onFrame(ByteBuffer f) { encode(f, w, hgt); }
+      }, UVCCamera.PIXEL_FORMAT_NV21);
+      c.startPreview();
+      cam = c;
+      finish(true, "", w, hgt);
+    } catch (Exception e) { finish(false, "웹캠을 켜지 못했어요: " + e.getMessage(), 0, 0); }
+  }
+
+  private void encode(ByteBuffer f, int w, int hgt) {
+    if (encoding) return;   // 바쁘면 이번 장면은 건너뛰어요
+    encoding = true;
+    try {
+      byte[] nv = new byte[f.remaining()]; f.get(nv);
+      ByteArrayOutputStream o = new ByteArrayOutputStream(w * hgt / 4);
+      new YuvImage(nv, ImageFormat.NV21, w, hgt, null).compressToJpeg(new Rect(0, 0, w, hgt), 85, o);
+      synchronized (lock) { jpeg = o.toByteArray(); seq++; lock.notifyAll(); }
+    } catch (Exception ignored) {
+    } finally { encoding = false; }
+  }
+
+  /** after보다 새 장면이 생길 때까지 잠깐 기다렸다가 돌려줘요. 없으면 null */
+  Object[] frame(long after, long waitMs) {
+    synchronized (lock) {
+      long end = System.currentTimeMillis() + waitMs;
+      while (jpeg == null || seq <= after) {
+        long left = end - System.currentTimeMillis();
+        if (left <= 0) break;
+        try { lock.wait(left); } catch (InterruptedException e) { break; }
+      }
+      if (jpeg == null || seq <= after) return null;
+      return new Object[]{jpeg, seq};
+    }
+  }
+
+  void close() {
+    UVCCamera c = cam; cam = null;
+    if (c != null) { try { c.stopPreview(); } catch (Exception ignored) {} try { c.destroy(); } catch (Exception ignored) {} }
+    synchronized (lock) { jpeg = null; }
+  }
+
+  void stop() { h.post(this::close); }
+}
