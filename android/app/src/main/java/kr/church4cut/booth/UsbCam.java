@@ -43,6 +43,7 @@ final class UsbCam {
   private Done pending;
   private int wantW = 1280, wantH = 720, camW, camH, camType;
   private boolean running;
+  private volatile long lastFrame;
   private volatile boolean paused;   // 사이트가 안 볼 때는 변환을 쉬어요
 
   private final Object lock = new Object();
@@ -100,7 +101,7 @@ final class UsbCam {
     h.post(() -> {
       try {
         wantW = w; wantH = hgt; pending = done; paused = false;
-        if (cam != null && running && seq > 0) { finish(true, "", camW, camH); return; }   // 이미 잘 나오고 있으면 그대로
+        if (cam != null && running && System.currentTimeMillis() - lastFrame < 1500) { finish(true, "", camW, camH); return; }   // 이미 잘 나오고 있으면 그대로
         List<UsbDevice> list = cameras();
         if (list.isEmpty()) { finish(false, "USB 웹캠을 찾지 못했어요. 허브와 선을 확인해 주세요", 0, 0); return; }
         if (block != null) tryAll();
@@ -120,23 +121,27 @@ final class UsbCam {
     int rec = UVCCamera.getRecommendedPlatformQuirks(), alt = rec ^ UVCCamera.UVC_QUIRK_FIX_BANDWIDTH;
     Size mjWant = near(sizes, UVCCamera.UVC_VS_FRAME_MJPEG, wantW, wantH), mjSmall = near(sizes, UVCCamera.UVC_VS_FRAME_MJPEG, 640, 480);
     Size yuSmall = near(sizes, UVCCamera.UVC_VS_FRAME_UNCOMPRESSED, 640, 480), yuTiny = near(sizes, UVCCamera.UVC_VS_FRAME_UNCOMPRESSED, 320, 240);
-    for (Size s : new Size[]{mjWant, mjSmall}) if (s != null) { plan.add(new Object[]{s, rec}); plan.add(new Object[]{s, alt}); }
-    for (Size s : new Size[]{yuSmall, yuTiny}) if (s != null) { plan.add(new Object[]{s, alt}); plan.add(new Object[]{s, rec}); }
+    // 화면 그리기 판 없이 먼저 시험해요 (판이 막히면 장면이 한 장 뒤 멈춰요)
+    for (boolean disp : new boolean[]{false, true}) {
+      for (Size s : new Size[]{mjWant, mjSmall}) if (s != null) { plan.add(new Object[]{s, rec, disp}); plan.add(new Object[]{s, alt, disp}); }
+      for (Size s : new Size[]{yuSmall, yuTiny}) if (s != null) { plan.add(new Object[]{s, alt, disp}); plan.add(new Object[]{s, rec, disp}); }
+    }
     step(plan, 0);
   }
 
   private void step(List<Object[]> plan, int i) {
     if (pending == null) return;
     if (i >= plan.size()) { release(); finish(false, "웹캠에서 장면이 오지 않아요 · " + log.toString().trim().replace('\n', ' '), 0, 0); return; }
-    Size s = (Size) plan.get(i)[0]; int q = (Integer) plan.get(i)[1];
-    String name = (s.type == UVCCamera.UVC_VS_FRAME_MJPEG ? "MJPEG " : "YUYV ") + s.width + "×" + s.height + "@" + s.fps + (q != 0 ? " 대역폭보정" : "");
+    Size s = (Size) plan.get(i)[0]; int q = (Integer) plan.get(i)[1]; boolean disp = (Boolean) plan.get(i)[2];
+    String name = (s.type == UVCCamera.UVC_VS_FRAME_MJPEG ? "MJPEG " : "YUYV ") + s.width + "×" + s.height + "@" + s.fps + (q != 0 ? " 대역폭보정" : "") + (disp ? " 판" : "");
     long before = rawFrames + glFrames;
-    String r = open(s, q);
+    String r = open(s, q, disp);
     if (r != null) { log.append(name).append(": ").append(r).append('\n'); h.post(() -> step(plan, i + 1)); return; }
     h.postDelayed(() -> {
       long got = rawFrames + glFrames - before;
       log.append(name).append(": 장면 ").append(got).append("개\n");
-      if (got > 0 && seq > 0) { finish(true, "", camW, camH); return; }
+      if (got >= 8 && seq > 0) {   // 2.5초에 8장 넘게 와야 제대로 흐르는 것
+        finish(true, "", camW, camH); return; }
       release();
       step(plan, i + 1);
     }, 2500);
@@ -172,7 +177,7 @@ final class UsbCam {
   }
 
   /** 한 조합으로 열고 시작해요. 실패하면 이유 문장, 성공하면 null */
-  private String open(Size s, int quirks) {
+  private String open(Size s, int quirks, boolean disp) {
     release();
     try {
       cam = new UVCCamera(new UVCParam(s, quirks));
@@ -184,9 +189,11 @@ final class UsbCam {
       final int w = camW, hgt = camH;
       cam.setFrameCallback(f -> encode(f, w, hgt), UVCCamera.PIXEL_FORMAT_NV21);
       // 장면을 받는 두 번째 길: 화면 그리기 판(ImageReader)
-      reader = ImageReader.newInstance(w, hgt, PixelFormat.RGBX_8888, 2);
-      reader.setOnImageAvailableListener(this::fromReader, h);
-      cam.setPreviewDisplay(reader.getSurface());
+      if (disp) {
+        reader = ImageReader.newInstance(w, hgt, PixelFormat.RGBX_8888, 2);
+        reader.setOnImageAvailableListener(this::fromReader, h);
+        cam.setPreviewDisplay(reader.getSurface());
+      }
       int sr = startPreview(cam);
       running = true;
       return sr == 0 ? null : "시작 실패 " + sr;
@@ -214,7 +221,7 @@ final class UsbCam {
   }
 
   private void encode(ByteBuffer f, int w, int hgt) {
-    rawFrames++;
+    rawFrames++; lastFrame = System.currentTimeMillis();
     if (encoding || paused) return;   // 바쁘면 이번 장면은 건너뛰어요
     encoding = true;
     try {
@@ -231,7 +238,7 @@ final class UsbCam {
     Image im = null;
     try {
       im = r.acquireLatestImage(); if (im == null) return;
-      glFrames++;
+      glFrames++; lastFrame = System.currentTimeMillis();
       if (encoding || paused || rawFrames > 0) return;   // 첫 번째 길이 되면 그쪽을 써요
       encoding = true;
       try {
