@@ -1669,7 +1669,7 @@ async function cloudUpload(blob, kind, publicId){
 const Sync = {
   busy:false, lastPull:0, msg:'',
   cloud(){ return S.qr.cloud || 'xnwtjp3o'; },
-  url(n){ return `https://res.cloudinary.com/${encodeURIComponent(this.cloud())}/raw/upload/c4sync/${S.sync.code}/${n}`; },
+  url(n){ return `https://res.cloudinary.com/${encodeURIComponent(this.cloud())}/raw/upload/c4sync/${S.sync.code}/${n}.gz`; },   // Cloudinary가 raw 파일 이름 끝에 .gz를 붙여요
   shared(){ const o = clone(S); delete o.cam; delete o.sync; delete o.count; return {settings:o, frames:FRAMES, stickers:USTK}; },
   async hash(str){ try { const d = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str)); return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join(''); } catch(e) { return String(str.length); } },
   async exists(n){ if (n <= 0) return true; try { const r = await fetch(this.url(n) + '?t=' + Date.now(), {method:'HEAD', cache:'no-store'}); return r.ok; } catch(e) { throw new Error('인터넷 연결을 확인해 주세요'); } },
@@ -1694,7 +1694,7 @@ const Sync = {
       const n = (await this.latest()) + 1, blob = await this.pack(str);
       if (blob.size > 9.5e6) throw new Error('프레임 그림이 너무 커요 (10MB 넘음). 안 쓰는 프레임을 지워 주세요');
       const j = await cloudUpload(new File([blob], 'sync.gz'), 'raw', `c4sync/${S.sync.code}/${n}`);
-      if (j.public_id !== `c4sync/${S.sync.code}/${n}`) throw new Error('Cloudinary 업로드 설정이 파일 이름을 바꿔요 (' + j.public_id + ')');
+      const want = `c4sync/${S.sync.code}/${n}`; if (j.public_id !== want && j.public_id !== want + '.gz') throw new Error('Cloudinary 업로드 설정이 파일 이름을 바꿔요 (' + j.public_id + ')');
       S.sync.ver = n; S.sync.hash = h; S.sync.at = Date.now(); save();
       this.note(`올렸어요 (${new Date().toLocaleTimeString('ko-KR', {hour:'numeric', minute:'2-digit'})})`);
     } catch(e) { this.note('올리지 못했어요: ' + e.message); }
@@ -1801,7 +1801,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 m';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 n';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
