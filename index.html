@@ -563,6 +563,7 @@ const DEFAULT_SETTINGS = {
   cam:{ deviceId:'', front:{mirror:true,rot:0,zoom:1,shiftY:0}, top:{mirror:false,rot:0,zoom:1,shiftY:0} },
   print:{ paperW:100, paperH:148, cut:true, offX:0, offY:0, maxCopies:4 },
   qr:{ cloud:'', preset:'', base:'' },
+  sync:{ code:'', ver:0, hash:'', at:0 },
 };
 function frameStrip(name, mode, bg, shape, ink, title){
   return { id:uid(), name, mode, enabled:true, Wmm:50, Hmm:148, bg, bgImg:null, overlay:null,
@@ -1094,6 +1095,7 @@ function go(id){
   const prev = SC[cur]; if (prev && prev.leave) prev.leave();
   $$('.screen').forEach(s => s.hidden = s.id !== id);
   cur = id; if (SC[id] && SC[id].enter) SC[id].enter();
+  if (id === 'home' && S.sync.code) setTimeout(() => Sync.pull().then(ch => { if (ch && cur === 'home') go('home'); }), 1500);
 }
 $$('.back').forEach(b => b.addEventListener('click', () => go(b.dataset.to)));
 (function loop(){ tickId++; const s = SC[cur]; if (s && s.tick) { try { s.tick(); } catch(e) { console.error(e); } } requestAnimationFrame(loop); })();
@@ -1390,6 +1392,68 @@ async function cloudUpload(blob, kind, publicId){
   const r = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(S.qr.cloud)}/${kind}/upload`, {method:'POST', body:fd});
   const j = await r.json(); if (!r.ok || !j.secure_url) throw new Error((j.error && j.error.message) || '업로드 실패'); return j;
 }
+/* ================= PC·태블릿 함께 쓰기 =================
+   같은 '연결 코드'를 넣은 기기끼리 프레임·스티커·설정을 Cloudinary에 올려 나눠 써요.
+   올릴 때마다 c4sync/<코드>/<번호> 로 새 파일을 만들고, 받을 때는 가장 큰 번호를 찾아요.
+   카메라(기기마다 다름)와 연결 정보, 찍은 수는 나누지 않아요. */
+const Sync = {
+  busy:false, lastPull:0, msg:'',
+  cloud(){ return S.qr.cloud || 'xnwtjp3o'; },
+  url(n){ return `https://res.cloudinary.com/${encodeURIComponent(this.cloud())}/raw/upload/c4sync/${S.sync.code}/${n}`; },
+  shared(){ const o = clone(S); delete o.cam; delete o.sync; delete o.count; return {settings:o, frames:FRAMES, stickers:USTK}; },
+  async hash(str){ try { const d = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str)); return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join(''); } catch(e) { return String(str.length); } },
+  async exists(n){ if (n <= 0) return true; try { const r = await fetch(this.url(n) + '?t=' + Date.now(), {method:'HEAD', cache:'no-store'}); return r.ok; } catch(e) { throw new Error('인터넷 연결을 확인해 주세요'); } },
+  async latest(){
+    let lo = S.sync.ver || 0; if (lo && !(await this.exists(lo))) lo = 0;
+    let step = 1; while (await this.exists(lo + step)) { lo += step; step *= 2; }
+    let hi = lo + step; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (await this.exists(m)) lo = m; else hi = m; }
+    return lo;
+  },
+  async pack(str){ if (!window.CompressionStream) return new Blob([str]); return new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).blob(); },
+  async unpack(blob){ const b = new Uint8Array(await blob.slice(0, 2).arrayBuffer()); if (b[0] === 0x1f && b[1] === 0x8b) return new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).text(); return blob.text(); },
+  note(m){ this.msg = m; const e = $('#syncMsg'); if (e) e.textContent = m; },
+  // 이 기기에서 바뀐 게 있으면 올려요
+  async push(force){
+    if (!S.sync.code || this.busy) return;
+    if (!(S.qr.cloud && S.qr.preset)) { this.note('올리려면 QR 받기 탭에 Cloudinary 값이 있어야 해요'); return; }
+    this.busy = true;
+    try {
+      const str = JSON.stringify(this.shared()), h = await this.hash(str);
+      if (!force && h === S.sync.hash) return;
+      this.note('다른 기기와 맞추는 중이에요…');
+      const n = (await this.latest()) + 1, blob = await this.pack(str);
+      if (blob.size > 9.5e6) throw new Error('프레임 그림이 너무 커요 (10MB 넘음). 안 쓰는 프레임을 지워 주세요');
+      const j = await cloudUpload(new File([blob], 'sync.gz'), 'raw', `c4sync/${S.sync.code}/${n}`);
+      if (j.public_id !== `c4sync/${S.sync.code}/${n}`) throw new Error('Cloudinary 업로드 설정이 파일 이름을 바꿔요 (' + j.public_id + ')');
+      S.sync.ver = n; S.sync.hash = h; S.sync.at = Date.now(); save();
+      this.note(`올렸어요 (${new Date().toLocaleTimeString('ko-KR', {hour:'numeric', minute:'2-digit'})})`);
+    } catch(e) { this.note('올리지 못했어요: ' + e.message); }
+    finally { this.busy = false; }
+  },
+  // 다른 기기가 올린 새 내용이 있으면 받아요
+  async pull(force){
+    if (!S.sync.code || this.busy) return false;
+    if (!force && Date.now() - this.lastPull < 30000) return false;
+    this.busy = true; this.lastPull = Date.now();
+    try {
+      const n = await this.latest();
+      if (!n) { this.note('아직 올라온 내용이 없어요'); return false; }
+      if (n <= (S.sync.ver || 0) && !force) return false;
+      this.note('새 내용을 받는 중이에요…');
+      const r = await fetch(this.url(n) + '?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) throw new Error('받기 실패 ' + r.status);
+      const str = await this.unpack(await r.blob()), j = JSON.parse(str);
+      const keep = {cam:S.cam, sync:S.sync, count:S.count};
+      S = merge(clone(DEFAULT_SETTINGS), j.settings); Object.assign(S, keep);
+      if (Array.isArray(j.frames)) FRAMES = j.frames; if (Array.isArray(j.stickers)) USTK = j.stickers;
+      S.sync.ver = n; S.sync.hash = await this.hash(JSON.stringify(this.shared())); S.sync.at = Date.now();
+      save(); buildStickers();
+      this.note(`받았어요 (${new Date().toLocaleTimeString('ko-KR', {hour:'numeric', minute:'2-digit'})})`);
+      return true;
+    } catch(e) { this.note('받지 못했어요: ' + e.message); return false; }
+    finally { this.busy = false; }
+  },
+  newCode(){ const a = 'abcdefghjkmnpqrstuvwxyz23456789'; let c = ''; const r = crypto.getRandomValues(new Uint8Array(6)); r.forEach(x => c += a[x % a.length]); return c; },
+};
 const dlBase = () => (S.qr.base || location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, ''));
 function qrImg(text, px = 6){ if (!window.qrcode) return null; const q = qrcode(0, 'M'); q.addData(text); q.make(); return el('img', {src:q.createDataURL(px, 2), alt:'사진 받기 QR 코드'}); }
 SC.final = {
@@ -1467,7 +1531,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 f';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 g';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -1508,7 +1572,7 @@ function drawPin(){ $$('#pinDots i').forEach((d, i) => d.classList.toggle('on', 
   kp.appendChild(b); }); })();
 $('#gear').addEventListener('click', openPin);
 $('#pinCancel').addEventListener('click', () => $('#pinModal').hidden = true);
-$('#adminClose').addEventListener('click', () => { save(); buildStickers(); go('home'); });
+$('#adminClose').addEventListener('click', () => { save(); buildStickers(); go('home'); Sync.push(); });
 
 const ATABS = [['basic','기본'],['frames','프레임'],['shoot','촬영·필터'],['stk','스티커'],['print','인쇄'],['qr','QR 받기'],['backup','백업']];
 let atab = 'frames';
@@ -1707,6 +1771,24 @@ SC.admin = {
       p.appendChild(el('div', {class:'help'}, '<b>Cloudinary 설정 방법</b><ol><li>cloudinary.com에서 무료로 가입해요.</li><li>대시보드 첫 화면의 <b>Cloud name</b>을 복사해요.</li><li>Settings → Upload → Upload presets에서 <b>Add upload preset</b>을 누르고 Signing mode를 <b>Unsigned</b>로 저장해요. 그 이름이 Upload preset이에요.</li><li>올라간 사진은 Cloudinary의 Media Library에서 모아 보거나 지울 수 있어요.</li></ol>QR 다운로드 페이지는 이 앱과 같은 곳에 있는 dl.html 파일이에요.'));
     }
     if (atab === 'backup') {
+      { const msg = el('p', {class:'small', id:'syncMsg'}, esc(Sync.msg || (S.sync.at ? '마지막으로 맞춘 때: ' + new Date(S.sync.at).toLocaleString('ko-KR') : '')));
+        const kids = [], rowOf = (...b) => { const r = el('div', {class:'row'}); b.forEach(x => r.appendChild(x)); return r; };
+        if (S.sync.code) {
+          kids.push(el('p', {}, `연결 코드: <b style="font-size:1.4em;letter-spacing:.12em">${esc(S.sync.code)}</b>`));
+          kids.push(rowOf(btn('지금 받기', async () => { if (await Sync.pull(true)) this.render(); }, 'btn dark'), btn('지금 올리기', () => Sync.push(true)), btn('연결 끊기', () => { S.sync = {code:'', ver:0, hash:'', at:0}; save(); Sync.msg = ''; this.render(); })));
+        } else {
+          const code = el('input', {type:'text', placeholder:'예: k7m2qa', autocapitalize:'off', autocomplete:'off'});
+          kids.push(rowOf(btn('새 연결 만들기', async () => {
+            if (!(S.qr.cloud && S.qr.preset)) { toast('먼저 QR 받기 탭에 Cloudinary 값을 넣어 주세요', 4000); return; }
+            S.sync = {code:Sync.newCode(), ver:0, hash:'', at:0}; save(); this.render(); await Sync.push(true); }, 'btn dark')));
+          const l = el('label', {class:'f'}, '다른 기기에서 만든 연결 코드 넣기'); l.appendChild(code); kids.push(l);
+          kids.push(rowOf(btn('연결하기', async () => {
+            const c = code.value.trim().toLowerCase().replace(/[^a-z0-9]/g, ''); if (c.length < 4) { toast('코드를 확인해 주세요'); return; }
+            S.sync = {code:c, ver:0, hash:'', at:0}; save(); Sync.note('받는 중이에요…');
+            if (await Sync.pull(true)) { toast('연결했어요. 프레임과 설정을 받았어요', 4000); this.render(); } })));
+        }
+        kids.push(msg);
+        p.appendChild(grp('PC·태블릿 함께 쓰기', '같은 연결 코드를 넣은 기기끼리 프레임, 스티커, 설정을 함께 써요. 관리자 화면을 닫을 때 바뀐 내용이 올라가고, 다른 기기는 처음 화면으로 돌아올 때 받아요. 카메라 설정은 기기마다 따로예요.', ...kids)); }
       p.appendChild(grp('설정 옮기기', '프레임, 스티커, 설정을 파일 하나로 저장해서 다른 태블릿에 옮길 수 있어요.',
         el('div', {class:'row'})));
       const row = p.lastChild.lastChild;
