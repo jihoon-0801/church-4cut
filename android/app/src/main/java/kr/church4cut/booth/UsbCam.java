@@ -72,6 +72,20 @@ final class UsbCam {
     return b.length() == 0 ? "꽂힌 USB 장치가 하나도 안 보여요" : b.toString().trim();
   }
 
+  // 같은 웹캠을 두 번 열면 "이미 쓰는 중(busy)" 오류가 나서, 한 번 연 것은 끝까지 다시 써요
+  private volatile boolean devOpen, opening, opened;
+  private int retries, camW, camH;
+
+  private UVCParam param() {
+    return new UVCParam(new Size(UVCCamera.UVC_VS_FRAME_MJPEG, wantW, wantH, 30, new ArrayList<>()), UVCCamera.getRecommendedPlatformQuirks());
+  }
+
+  private void openCam() {
+    if (opening || opened) return;
+    opening = true;
+    helper.openCamera(param());
+  }
+
   /**
    * 라이브러리가 권하는 순서대로 열어요: 장치 고르기(허용 창) → 카메라 열기 → 화면 받기.
    * 라이브러리가 안 보이는 화면에 먼저 그려 줘야 장면이 흘러나와요.
@@ -81,24 +95,28 @@ final class UsbCam {
     helper = new CameraHelper();
     helper.setStateCallback(new ICameraHelper.StateCallback() {
       @Override public void onAttach(UsbDevice d) {}
-      @Override public void onDeviceOpen(UsbDevice d, boolean first) {
-        Size want = new Size(UVCCamera.UVC_VS_FRAME_MJPEG, wantW, wantH, 30, new ArrayList<>());
-        helper.openCamera(new UVCParam(want, UVCCamera.getRecommendedPlatformQuirks()));
-      }
+      @Override public void onDeviceOpen(UsbDevice d, boolean first) { devOpen = true; if (pending != null) openCam(); }
       @Override public void onCameraOpen(UsbDevice d) {
+        opening = false; opened = true;
         try {
           Size cur = helper.getPreviewSize();
-          final int w = cur.width, hgt = cur.height;
+          camW = cur.width; camH = cur.height;
+          final int w = camW, hgt = camH;
           helper.setFrameCallback(f -> encode(f, w, hgt), UVCCamera.PIXEL_FORMAT_NV21);
           helper.startPreview();
           finish(true, "", w, hgt);
         } catch (Exception e) { finish(false, "웹캠 화면을 켜지 못했어요: " + e.getMessage(), 0, 0); }
       }
-      @Override public void onCameraClose(UsbDevice d) {}
-      @Override public void onDeviceClose(UsbDevice d) {}
-      @Override public void onDetach(UsbDevice d) { synchronized (lock) { jpeg = null; } }
+      @Override public void onCameraClose(UsbDevice d) { opened = false; opening = false; }
+      @Override public void onDeviceClose(UsbDevice d) { devOpen = false; opened = false; opening = false; }
+      @Override public void onDetach(UsbDevice d) { devOpen = false; opened = false; opening = false; dev = null; synchronized (lock) { jpeg = null; } }
       @Override public void onCancel(UsbDevice d) { finish(false, "웹캠 사용을 허용하지 않았어요", 0, 0); }
-      @Override public void onError(UsbDevice d, com.herohan.uvcapp.CameraException e) { finish(false, "웹캠 오류: " + e.getMessage(), 0, 0); }
+      @Override public void onError(UsbDevice d, com.herohan.uvcapp.CameraException e) {
+        opening = false;
+        if (opened) return;   // 이미 열렸으면 겹친 요청의 오류라 무시해요
+        if (retries++ < 3) { h.postDelayed(() -> { if (!opened) openCam(); }, 1500); return; }   // 잠깐 기다렸다 다시 열기
+        finish(false, "웹캠을 다른 앱이 쓰고 있어요. USB 카메라 같은 다른 앱을 완전히 닫아 주세요 (" + e.getMessage() + ")", 0, 0);
+      }
     });
   }
 
@@ -106,15 +124,15 @@ final class UsbCam {
   void start(int w, int hgt, Done done) {
     h.post(() -> {
       try {
-        close();
-        wantW = w; wantH = hgt; pending = done;
+        wantW = w; wantH = hgt; pending = done; retries = 0;
         List<UsbDevice> list = cameras();
         if (list.isEmpty()) { finish(false, "USB 웹캠을 찾지 못했어요. 허브와 선을 확인해 주세요", 0, 0); return; }
         ensureHelper();
-        dev = list.get(0);
-        helper.selectDevice(dev);
+        if (opened) { helper.startPreview(); finish(true, "", camW, camH); return; }   // 이미 열려 있으면 화면만 다시 켜요
+        if (dev != null && devOpen) openCam();
+        else { dev = list.get(0); helper.selectDevice(dev); }
         // 열리는 데 오래 걸리면 알려줘요
-        h.postDelayed(() -> { if (pending == done) finish(false, "웹캠이 응답하지 않아요. 뽑았다 다시 꽂아 주세요", 0, 0); }, 15000);
+        h.postDelayed(() -> { if (pending == done) finish(false, "웹캠이 응답하지 않아요. 뽑았다 다시 꽂아 주세요", 0, 0); }, 20000);
       } catch (Exception e) { finish(false, String.valueOf(e.getMessage()), 0, 0); }
     });
   }
@@ -150,10 +168,9 @@ final class UsbCam {
     }
   }
 
+  /** 화면만 멈춰요. 웹캠은 연 채로 두어야 다시 켤 때 '쓰는 중' 오류가 안 나요 */
   void close() {
-    // 다음에 켤 때 처음부터 다시 열리도록 연결을 통째로 정리해요
-    ICameraHelper hp = helper; helper = null;
-    if (hp != null) { try { hp.stopPreview(); } catch (Exception ignored) {} try { hp.closeCamera(); } catch (Exception ignored) {} try { hp.release(); } catch (Exception ignored) {} }
+    if (helper != null && opened) { try { helper.stopPreview(); } catch (Exception ignored) {} }
     synchronized (lock) { jpeg = null; }
   }
 

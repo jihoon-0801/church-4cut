@@ -155,7 +155,7 @@ public class MainActivity extends Activity {
   }
 
   final class Bridge {
-    @JavascriptInterface public String version() { return "5"; }
+    @JavascriptInterface public String version() { return "6"; }
 
     /** USB 웹캠이 꽂혀 있는지 (이름 목록) */
     @JavascriptInterface public String uvcList() {
