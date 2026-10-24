@@ -66,7 +66,7 @@ button{cursor:pointer}
 /* 시작 화면 */
 #home{background:var(--dark);color:#fff}
 #home .kbar{grid-template-columns:1fr auto}
-#home.has-bg{background:var(--dark) center/cover no-repeat;position:relative}
+#home.has-bg{background:var(--dark) center/cover no-repeat}
 #home.has-bg::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,var(--bg-dim,0));pointer-events:none}
 #home.has-bg>*{position:relative}
 #home.has-bg .home-start{box-shadow:0 8px 30px rgba(0,0,0,.35)}
@@ -1771,7 +1771,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 i';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 j';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
