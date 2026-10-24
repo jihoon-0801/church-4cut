@@ -821,7 +821,7 @@ function textSticker(text, {font = 'Black Han Sans', fill = '#ff4f86', stroke = 
   const m = document.createElement('canvas').getContext('2d'); m.font = `${size}px "${font}"`;
   const w = Math.ceil(m.measureText(text).width) + size*0.8, h = Math.ceil(size*1.6);
   return mk(w, h, (x) => { x.font = `${size}px "${font}", sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineJoin = 'round';
-    x.lineWidth = size*0.3; x.strokeStyle = ink; x.strokeText(text, w/2, h/2); x.lineWidth = size*0.16; x.strokeStyle = stroke; x.strokeText(text, w/2, h/2); x.fillStyle = fill; x.fillText(text, w/2, h/2); });
+    x.lineWidth = size*0.17; x.strokeStyle = ink; x.strokeText(text, w/2, h/2); x.lineWidth = size*0.08; x.strokeStyle = stroke; x.strokeText(text, w/2, h/2); x.fillStyle = fill; x.fillText(text, w/2, h/2); });
 }
 function pillSticker(text, {fill = '#fff', ink = '#111', font = 'Jua', size = 64} = {}){
   const m = document.createElement('canvas').getContext('2d'); m.font = `${size}px "${font}"`;
@@ -867,41 +867,186 @@ function crossSticker(col = '#ffffff'){
     x.beginPath(); x.moveTo(85, 10); x.lineTo(135, 10); x.lineTo(135, 80); x.lineTo(205, 80); x.lineTo(205, 130); x.lineTo(135, 130); x.lineTo(135, 290); x.lineTo(85, 290); x.lineTo(85, 130); x.lineTo(15, 130); x.lineTo(15, 80); x.lineTo(85, 80); x.closePath(); x.fill(); x.stroke(); });
 }
 function emojiSticker(ch){ return mk(240, 240, x => { x.font = '190px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(ch, 120, 132); }); }
+// 스티커 글자에 쓰인 폰트·글자를 모아 두었다가, 아직 안 받은 글자가 있으면 받아서 다시 그려요 (안 그러면 기본 글꼴로 그려져 깨져 보여요)
+const FONT_USE = new Map();
+function useFont(font, text){ const s = FONT_USE.get(font) || new Set(); for (const ch of String(text)) s.add(ch); FONT_USE.set(font, s); }
+async function stickerFontsReady(){
+  const need = [...FONT_USE].map(([f, s]) => [f, [...s].join('')]).filter(([f, t]) => { try { return !document.fonts.check(`60px "${f}"`, t); } catch(e) { return false; } });
+  if (!need.length) return false;
+  try { await Promise.race([Promise.all(need.map(([f, t]) => document.fonts.load(`60px "${f}"`, t))), sleep(8000)]); } catch(e) {}
+  return true;
+}
+const OUT = '#1b1b1b';
+function verseSticker(text, ref, fill = '#fff8e1', font = 'Gowun Dodum'){
+  const ls = text.split('\n'), size = 54, rs = 30; useFont(font, text); useFont('Gowun Dodum', ref);
+  const m = document.createElement('canvas').getContext('2d'); m.font = `${size}px "${font}"`;
+  const tw = Math.max(...ls.map(l => m.measureText(l).width)), w = Math.ceil(tw + 90), h = Math.ceil(ls.length*size*1.3 + rs*1.6 + 70);
+  return mk(w, h, x => { rr(x, 5, 5, w-10, h-10, 30); x.fillStyle = fill; x.fill(); x.lineWidth = 7; x.strokeStyle = OUT; x.stroke();
+    x.fillStyle = OUT; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = `${size}px "${font}", sans-serif`;
+    ls.forEach((l, i) => x.fillText(l, w/2, 40 + size*0.65 + i*size*1.3));
+    x.font = `${rs}px "Gowun Dodum", sans-serif`; x.fillStyle = '#6b5a3a'; x.fillText(ref, w/2, h - 32 - rs*0.3); });
+}
+// 굵은 테두리 그림 스티커 (이모지 대신 직접 그려서 기기마다 똑같이 보여요)
+function drawIcon(name){
+  const S_ = 260;
+  return mk(S_, S_, x => {
+    x.lineJoin = 'round'; x.lineCap = 'round'; x.lineWidth = 8; x.strokeStyle = OUT;
+    const fs = (c) => { x.fillStyle = c; x.fill(); x.stroke(); };
+    const P = (pts) => { x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.closePath(); };
+    const circ = (cx, cy, r) => { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI*2); };
+    const ell = (cx, cy, rx, ry, rot = 0) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot, 0, Math.PI*2); };
+    const star = (cx, cy, r, n = 5, k = 0.45) => { x.beginPath(); for (let i = 0; i < n*2; i++) { const rr_ = i%2 ? r*k : r, a = i*Math.PI/n - Math.PI/2; x.lineTo(cx + Math.cos(a)*rr_, cy + Math.sin(a)*rr_); } x.closePath(); };
+    switch (name) {
+      case 'cross': P([[105,20],[155,20],[155,85],[215,85],[215,135],[155,135],[155,240],[105,240],[105,135],[45,135],[45,85],[105,85]]); fs('#ffffff'); break;
+      case 'crossGold': P([[105,20],[155,20],[155,85],[215,85],[215,135],[155,135],[155,240],[105,240],[105,135],[45,135],[45,85],[105,85]]); fs('#ffd84a');
+        x.lineWidth = 5; [[200,40],[60,40]].forEach(([a,b]) => { x.beginPath(); x.moveTo(a-14,b); x.lineTo(a+14,b); x.moveTo(a,b-14); x.lineTo(a,b+14); x.stroke(); }); break;
+      case 'heartCross': x.beginPath(); x.moveTo(130, 230); x.bezierCurveTo(-20, 130, 30, -10, 130, 70); x.bezierCurveTo(230, -10, 280, 130, 130, 230); x.closePath(); fs('#ff6f91');
+        P([[120,80],[140,80],[140,108],[166,108],[166,128],[140,128],[140,185],[120,185],[120,128],[94,128],[94,108],[120,108]]); fs('#ffffff'); break;
+      case 'dove': x.beginPath(); x.moveTo(40,150); x.quadraticCurveTo(70,95,135,100); x.quadraticCurveTo(170,70,205,85); x.quadraticCurveTo(222,92,235,100); x.lineTo(212,112); x.quadraticCurveTo(205,175,140,190); x.lineTo(95,215); x.lineTo(100,185); x.quadraticCurveTo(60,180,40,150); x.closePath(); fs('#ffffff');
+        x.beginPath(); x.moveTo(115,120); x.quadraticCurveTo(110,40,165,25); x.quadraticCurveTo(160,85,150,135); x.closePath(); fs('#e8f4ff');
+        circ(203,96,5); x.fillStyle = OUT; x.fill();
+        x.beginPath(); x.moveTo(236,100); x.quadraticCurveTo(250,95,248,80); x.lineWidth = 6; x.strokeStyle = '#3a9d4a'; x.stroke(); ell(244,74,10,6,-0.6); x.fillStyle = '#6cc070'; x.fill(); x.lineWidth = 4; x.strokeStyle = OUT; x.stroke(); break;
+      case 'lamb': [[80,120],[110,95],[150,95],[180,120],[180,160],[150,180],[110,180],[80,160]].forEach(([a,b]) => { circ(a,b,32); fs('#ffffff'); });
+        circ(130,138,52); x.fillStyle = '#ffffff'; x.fill();
+        [[110,190],[150,190]].forEach(([a,b]) => { x.beginPath(); x.rect(a-9,b,18,40); fs('#4a4a4a'); });
+        ell(205,105,34,30); fs('#3d3d3d'); ell(185,85,16,9,-0.5); fs('#3d3d3d');
+        circ(212,100,5); x.fillStyle = '#fff'; x.fill(); ell(200,118,8,5); x.fillStyle = '#ff9fb5'; x.fill();
+        [[185,58],[205,52],[225,60]].forEach(([a,b]) => { circ(a,b,14); fs('#ffffff'); }); break;
+      case 'church': P([[60,120],[130,60],[200,120],[200,230],[60,230]]); fs('#fff3d6');
+        P([[105,95],[130,72],[155,95],[155,120],[105,120]]); x.stroke();
+        x.beginPath(); x.moveTo(130,60); x.lineTo(130,18); x.moveTo(114,32); x.lineTo(146,32); x.stroke();
+        x.beginPath(); x.moveTo(110,230); x.lineTo(110,180); x.quadraticCurveTo(130,160,150,180); x.lineTo(150,230); fs('#c98a5a');
+        circ(130,138,14); fs('#8fd3ff');
+        [[80,170],[180,170]].forEach(([a,b]) => { x.beginPath(); x.rect(a-12,b-18,24,32); fs('#8fd3ff'); }); break;
+      case 'bible': P([[40,70],[200,55],[220,195],[60,215]]); fs('#7a3b2e'); P([[52,78],[198,64],[214,186],[66,204]]); x.lineWidth = 4; x.stroke(); x.lineWidth = 8;
+        P([[124,90],[140,88],[143,112],[166,110],[168,126],[145,128],[150,176],[134,178],[129,130],[106,132],[104,116],[127,114]]); fs('#ffd84a');
+        x.beginPath(); x.moveTo(150,210); x.lineTo(152,245); x.lineTo(162,234); x.lineTo(172,243); x.lineTo(168,206); fs('#ff4f6d'); break;
+      case 'candle': x.beginPath(); x.rect(95,110,70,130); fs('#ffffff'); x.beginPath(); x.moveTo(130,110); x.lineTo(130,92); x.stroke();
+        x.beginPath(); x.moveTo(130,25); x.quadraticCurveTo(165,70,130,92); x.quadraticCurveTo(95,70,130,25); fs('#ffb020');
+        x.beginPath(); x.moveTo(130,52); x.quadraticCurveTo(145,72,130,84); x.quadraticCurveTo(115,72,130,52); x.fillStyle = '#fff1a8'; x.fill();
+        x.beginPath(); x.moveTo(95,135); x.quadraticCurveTo(110,150,115,135); x.stroke(); break;
+      case 'star': star(130,135,110); fs('#ffd84a'); star(130,135,50); x.fillStyle = '#fff3a0'; x.fill(); break;
+      case 'crown': P([[40,190],[30,80],[85,130],[130,60],[175,130],[230,80],[220,190]]); fs('#ffd84a'); x.beginPath(); x.rect(40,190,180,34); fs('#ffc21a');
+        [[30,80],[130,60],[230,80]].forEach(([a,b]) => { circ(a,b,14); fs('#ff6f91'); }); circ(130,160,14); fs('#8fd3ff'); break;
+      case 'fish': x.beginPath(); x.moveTo(30,130); x.quadraticCurveTo(110,40,190,130); x.quadraticCurveTo(110,220,30,130); x.closePath(); x.moveTo(190,130); fs('#8fd3ff');
+        P([[180,130],[235,85],[225,130],[235,175]]); fs('#8fd3ff'); circ(70,120,8); x.fillStyle = OUT; x.fill(); break;
+      case 'bread': x.beginPath(); x.moveTo(40,190); x.quadraticCurveTo(25,90,130,80); x.quadraticCurveTo(235,90,220,190); x.closePath(); fs('#e9a55a');
+        x.lineWidth = 6; [[90,110,100,170],[130,105,135,170],[170,110,165,170]].forEach(([a,b,c,d]) => { x.beginPath(); x.moveTo(a,b); x.lineTo(c,d); x.stroke(); }); break;
+      case 'grapes': x.beginPath(); x.moveTo(130,60); x.quadraticCurveTo(135,30,150,20); x.stroke(); ell(170,45,30,16,-0.4); fs('#6cc070');
+        [[100,85],[140,85],[180,85],[120,120],[160,120],[100,155],[140,155],[120,190],[160,190],[140,222]].forEach(([a,b]) => { circ(a,b,24); fs('#9b6bd6'); }); break;
+      case 'cup': x.beginPath(); x.moveTo(60,50); x.lineTo(200,50); x.quadraticCurveTo(200,150,130,155); x.quadraticCurveTo(60,150,60,50); fs('#ffd84a');
+        x.beginPath(); x.rect(118,155,24,50); fs('#ffc21a'); x.beginPath(); x.moveTo(70,230); x.quadraticCurveTo(130,195,190,230); x.closePath(); fs('#ffc21a');
+        x.beginPath(); x.moveTo(72,70); x.lineTo(188,70); x.quadraticCurveTo(186,100,180,108); x.lineTo(80,108); x.closePath(); x.fillStyle = '#b02a4a'; x.fill(); break;
+      case 'olive': x.beginPath(); x.moveTo(50,220); x.quadraticCurveTo(120,140,215,40); x.lineWidth = 8; x.stroke();
+        [[85,175,-0.9],[120,140,-0.9],[155,105,-0.9],[190,70,-0.9]].forEach(([a,b,r], i) => { ell(a-22,b-18,26,12,r-0.4); fs('#8bc34a'); ell(a+20,b+16,26,12,r+0.2); fs('#8bc34a'); });
+        circ(110,180,12); fs('#5d7a2e'); break;
+      case 'rainbow': ['#ff5c5c','#ffb020','#ffe14a','#6cc070','#4aa8ff','#9b6bd6'].forEach((c, i) => { x.beginPath(); x.arc(130,200,120-i*14,Math.PI,0); x.lineWidth = 14; x.strokeStyle = c; x.stroke(); });
+        x.lineWidth = 8; x.strokeStyle = OUT; [[55,205],[205,205]].forEach(([a,b]) => { [[a-25,b],[a,b-14],[a+25,b]].forEach(([c,d]) => { circ(c,d,22); x.fillStyle = '#fff'; x.fill(); }); x.beginPath(); x.moveTo(a-45,b+18); x.lineTo(a+45,b+18); x.stroke(); }); break;
+      case 'sun': for (let i = 0; i < 12; i++) { const a = i*Math.PI/6; x.beginPath(); x.moveTo(130+Math.cos(a)*80,130+Math.sin(a)*80); x.lineTo(130+Math.cos(a)*118,130+Math.sin(a)*118); x.lineWidth = 12; x.strokeStyle = '#ffb020'; x.stroke(); }
+        x.lineWidth = 8; x.strokeStyle = OUT; circ(130,130,68); fs('#ffd84a'); circ(108,120,7); circ(152,120,7); x.fillStyle = OUT; x.fill(); x.beginPath(); x.arc(130,138,24,0.2,Math.PI-0.2); x.stroke(); break;
+      case 'note': x.beginPath(); x.rect(105,40,18,140); x.rect(195,25,18,140); fs(OUT); P([[105,40],[213,25],[213,60],[105,75]]); fs(OUT);
+        ell(92,185,34,24,-0.4); fs('#ff6f91'); ell(182,170,34,24,-0.4); fs('#8fd3ff'); break;
+      case 'wings': [[-1],[1]].forEach(([d]) => { x.beginPath(); x.moveTo(130,150); x.quadraticCurveTo(130+d*120,40,130+d*120,90); x.quadraticCurveTo(130+d*125,170,130+d*20,190); x.closePath(); fs('#ffffff');
+          [[60,120],[75,150]].forEach(([r,b]) => { x.beginPath(); x.moveTo(130+d*25,b+10); x.quadraticCurveTo(130+d*r,b,130+d*(r+30),b-25); x.lineWidth = 5; x.stroke(); }); x.lineWidth = 8; });
+        ell(130,55,60,18); x.lineWidth = 12; x.strokeStyle = '#ffd84a'; x.stroke(); x.lineWidth = 8; x.strokeStyle = OUT; break;
+      case 'lily': [[-0.9],[0],[0.9]].forEach(([r]) => { x.save(); x.translate(130,150); x.rotate(r); x.beginPath(); x.moveTo(0,0); x.quadraticCurveTo(-45,-70,0,-120); x.quadraticCurveTo(45,-70,0,0); fs('#ffffff'); x.restore(); });
+        x.beginPath(); x.moveTo(130,150); x.lineTo(130,245); x.lineWidth = 8; x.strokeStyle = '#3a9d4a'; x.stroke(); x.strokeStyle = OUT; ell(160,215,28,10,-0.5); fs('#6cc070'); circ(130,150,12); fs('#ffd84a'); break;
+      case 'egg': ell(130,140,78,100); fs('#ffd0e0'); x.save(); ell(130,140,78,100); x.clip(); x.lineWidth = 12;
+        [['#8fd3ff',110],['#ffe14a',150],['#b9f0c9',190]].forEach(([c,y]) => { x.beginPath(); for (let i = 0; i <= 8; i++) x.lineTo(40+i*23, y + (i%2 ? -12 : 12)); x.strokeStyle = c; x.stroke(); });
+        x.restore(); x.lineWidth = 8; x.strokeStyle = OUT; ell(130,140,78,100); x.stroke(); break;
+      case 'tree': P([[130,20],[200,110],[170,110],[225,190],[35,190],[90,110],[60,110]]); fs('#4caf6a'); x.beginPath(); x.rect(112,190,36,45); fs('#a0673e');
+        star(130,26,24); fs('#ffd84a'); [[100,140,'#ff5c5c'],[160,150,'#8fd3ff'],[130,95,'#ffe14a'],[85,175,'#ffe14a'],[180,178,'#ff5c5c']].forEach(([a,b,c]) => { circ(a,b,10); fs(c); }); break;
+      case 'gift': x.beginPath(); x.rect(45,110,170,125); fs('#ff6f91'); x.beginPath(); x.rect(35,85,190,40); fs('#ff8fab'); x.beginPath(); x.rect(115,85,30,150); fs('#ffd84a');
+        x.beginPath(); x.moveTo(130,85); x.bezierCurveTo(70,20,60,90,130,85); fs('#ffd84a'); x.beginPath(); x.moveTo(130,85); x.bezierCurveTo(190,20,200,90,130,85); fs('#ffd84a'); break;
+      case 'snow': x.lineWidth = 12; x.strokeStyle = '#8fd3ff'; for (let i = 0; i < 6; i++) { const a = i*Math.PI/3; x.save(); x.translate(130,130); x.rotate(a); x.beginPath(); x.moveTo(0,0); x.lineTo(0,-110); x.moveTo(0,-70); x.lineTo(-25,-95); x.moveTo(0,-70); x.lineTo(25,-95); x.moveTo(0,-35); x.lineTo(-22,-55); x.moveTo(0,-35); x.lineTo(22,-55); x.stroke(); x.restore(); }
+        x.lineWidth = 8; x.strokeStyle = OUT; circ(130,130,16); fs('#ffffff'); break;
+      case 'maple': x.beginPath(); const pts = [[130,25],[150,75],[195,55],[180,105],[235,110],[195,145],[210,175],[160,165],[140,200],[130,170],[120,200],[100,165],[50,175],[65,145],[25,110],[80,105],[65,55],[110,75]]; pts.forEach(([a,b],i) => i ? x.lineTo(a,b) : x.moveTo(a,b)); x.closePath(); fs('#ff7a3d');
+        x.beginPath(); x.moveTo(130,170); x.lineTo(130,240); x.stroke(); break;
+      case 'pumpkin': [[85,150,50],[175,150,50],[130,150,55]].forEach(([a,b,r]) => { ell(a,b,r,72); fs('#ff9a3d'); }); x.beginPath(); x.moveTo(130,80); x.quadraticCurveTo(128,55,145,40); x.lineWidth = 12; x.strokeStyle = '#5d7a2e'; x.stroke(); x.lineWidth = 8; x.strokeStyle = OUT;
+        ell(165,62,22,10,-0.4); fs('#6cc070'); break;
+      case 'bell': x.beginPath(); x.moveTo(130,40); x.quadraticCurveTo(195,45,195,130); x.quadraticCurveTo(200,175,225,190); x.lineTo(35,190); x.quadraticCurveTo(60,175,65,130); x.quadraticCurveTo(65,45,130,40); fs('#ffd84a');
+        circ(130,205,18); fs('#ffc21a'); circ(130,34,10); fs('#ffc21a'); x.beginPath(); x.moveTo(95,90); x.quadraticCurveTo(90,120,92,150); x.lineWidth = 6; x.strokeStyle = '#fff6b0'; x.stroke(); break;
+    }
+  });
+}
 let STK = {}; let STK_CATS = [];
 function buildStickers(){
   STK = {}; const cats = {};
   const add = (cat, id, img) => { STK[id] = {img, cat}; (cats[cat] = cats[cat] || []).push(id); };
+  const T = (text, o = {}) => { useFont(o.font || 'Black Han Sans', text); return textSticker(text, o); };
+  const Pl = (text, o = {}) => { useFont(o.font || 'Jua', text); return pillSticker(text, o); };
+  const Bu = (text, c) => { useFont('Black Han Sans', text); return burstSticker(text, c); };
+  const Bb = (text, c) => { useFont('Jua', text); return bubbleSticker(text, c); };
+  const Rb = (text, c) => { useFont('Black Han Sans', text); return ribbonSticker(text, c); };
   const d = todayStr();
-  add('추천', 'date', pillSticker(d, {size:70}));
-  add('추천', 'lucky', burstSticker('럭키\n비키'));
-  add('추천', 'love', textSticker('사랑해'));
-  add('추천', 'b1', bubbleSticker('오히려 좋아'));
+  add('추천', 'date', Pl(d, {size:70}));
+  add('추천', 'lucky', Bu('은혜\n충만', '#ffb3c7'));
+  add('추천', 'love', T('사랑해'));
+  add('추천', 'b1', Bb('할렐루야!', '#ffe27a'));
   add('추천', 'spark', sparkleSticker());
-  add('추천', 'rib1', ribbonSticker('오늘 여기 있었음'));
-  add('말풍선', 'b2', bubbleSticker('할렐루야!', '#ffe27a'));
-  add('말풍선', 'b3', bubbleSticker('축복해요', '#ffb3c7'));
-  add('말풍선', 'b4', bubbleSticker('샬롬~', '#b9f0c9'));
-  add('말풍선', 'b5', bubbleSticker('또 만나요!', '#d7c4ff'));
-  add('배지', 'date2', pillSticker(d, {fill:'#111', ink:'#fff', size:70}));
-  add('배지', 'k1', burstSticker('은혜\n충만', '#ffb3c7'));
-  add('배지', 'k2', burstSticker('오늘의\nMVP', '#8fd3ff'));
-  add('배지', 'k3', pillSticker('새가족 환영해요', {fill:'#ffe27a', size:60}));
-  add('배지', 'rib2', ribbonSticker('우리는 한 가족', '#ffd0dc'));
-  add('글자', 't1', textSticker('할렐루야', {fill:'#ffd84a'}));
-  add('글자', 't2', textSticker('최고', {fill:'#7fd8ff'}));
-  add('글자', 't3', textSticker('God bless you', {font:'Jua', fill:'#ffffff', size:100}));
-  add('글자', 't4', textSticker('주님 안에서 하나', {font:'Jua', fill:'#b9f0c9', size:90}));
-  add('글자', 't5', textSticker('행복해', {fill:'#ffb3c7'}));
+  add('추천', 'rib1', Rb('오늘 여기 있었음'));
+  add('추천', 'ic_dove0', drawIcon('dove'));
+  add('추천', 'ic_hc0', drawIcon('heartCross'));
+  // 말씀 (개역개정)
+  [['항상 기뻐하라', '살전 5:16', '#fff3c4'], ['쉬지 말고 기도하라', '살전 5:17', '#e6f4ff'], ['범사에 감사하라', '살전 5:18', '#ffe4ec'],
+   ['여호와는 나의 목자시니\n내게 부족함이 없으리로다', '시 23:1', '#e7f8ea'], ['내 잔이 넘치나이다', '시 23:5', '#f1e8ff'], ['두려워하지 말라\n내가 너와 함께 함이라', '사 41:10', '#e6f4ff'],
+   ['너는 내 것이라', '사 43:1', '#ffe4ec'], ['사랑은 오래 참고', '고전 13:4', '#ffe4ec'], ['서로 사랑하라', '요 13:34', '#fff3c4'],
+   ['너희는 세상의 빛이라', '마 5:14', '#fff3c4'], ['너희는 세상의 소금이니', '마 5:13', '#e6f4ff'], ['하나님은 사랑이시라', '요일 4:16', '#ffe4ec'],
+   ['강하고 담대하라', '수 1:9', '#e7f8ea'], ['주의 말씀은 내 발에 등이요\n내 길에 빛이니이다', '시 119:105', '#fff3c4'], ['나는 포도나무요\n너희는 가지라', '요 15:5', '#e7f8ea'],
+   ['즐거워하는 자들과\n함께 즐거워하고', '롬 12:15', '#f1e8ff'], ['이 날은 여호와께서\n정하신 것이라', '시 118:24', '#fff3c4'], ['임마누엘', '마 1:23', '#e6f4ff'],
+   ['수고하고 무거운 짐 진 자들아\n다 내게로 오라', '마 11:28', '#e7f8ea'], ['내게 능력 주시는 자 안에서\n내가 모든 것을 할 수 있느니라', '빌 4:13', '#f1e8ff']]
+    .forEach(([t, r, c], i) => add('말씀', 'v' + i, verseSticker(t, r, c)));
+  // 교회 생활
+  add('교회', 'c0', T('할렐루야', {fill:'#ffd84a'}));
+  add('교회', 'c1', T('아멘!', {fill:'#7fd8ff'}));
+  add('교회', 'c2', Bb('샬롬~', '#b9f0c9'));
+  add('교회', 'c3', Bu('은혜\n충만', '#ffb3c7'));
+  add('교회', 'c4', Bb('축복해요', '#ffb3c7'));
+  add('교회', 'c5', Bb('기도할게요', '#d7c4ff'));
+  add('교회', 'c6', Pl('감사합니다', {fill:'#ffffff', size:66}));
+  add('교회', 'c7', Rb('오늘도 은혜', '#fff1a8'));
+  add('교회', 'c8', Bu('예배\n끝!', '#e4ff3a'));
+  add('교회', 'c9', Pl('주일 출석 완료', {fill:'#b9f0c9', size:60}));
+  add('교회', 'c10', Pl('새가족 환영해요', {fill:'#ffe27a', size:60}));
+  add('교회', 'c11', Rb('우리는 한 가족', '#ffd0dc'));
+  add('교회', 'c12', Bu('수련회\n왔다!', '#8fd3ff'));
+  add('교회', 'c13', T('찬양 최고', {fill:'#ff8fab'}));
+  add('교회', 'c14', Pl('청년부', {fill:'#111', ink:'#fff', size:66}));
+  add('교회', 'c15', Pl('주일학교', {fill:'#ffd84a', size:66}));
+  add('교회', 'c16', Pl('성가대', {fill:'#d7c4ff', size:66}));
+  add('교회', 'c17', Bu('달란트\n부자', '#ffe14a'));
+  add('교회', 'c18', Rb('God bless you', '#d7c4ff'));
+  add('교회', 'c19', Pl('주님 안에서 하나', {fill:'#b9f0c9', size:60}));
+  // 그림
+  ['cross','crossGold','heartCross','dove','lamb','church','bible','candle','star','crown','fish','bread','grapes','cup','olive','rainbow','sun','note','wings','lily']
+    .forEach(n => add('그림', 'ic_' + n, drawIcon(n)));
+  // 절기
+  add('절기', 's0', T('Happy Easter', {font:'Jua', fill:'#ff8fab', size:100}));
+  add('절기', 's1', Bb('부활하셨네!', '#fff3a0'));
+  add('절기', 's2', Rb('He is Risen', '#b9f0c9'));
+  add('절기', 's3', drawIcon('egg'));
+  add('절기', 's4', drawIcon('lily'));
+  add('절기', 's5', T('메리 크리스마스', {fill:'#ff5c5c'}));
+  add('절기', 's6', T('Merry Christmas', {font:'Jua', fill:'#4caf6a', size:100}));
+  add('절기', 's7', Rb('기쁘다 구주 오셨네', '#ffd0dc'));
+  add('절기', 's8', drawIcon('tree'));
+  add('절기', 's9', drawIcon('gift'));
+  add('절기', 's10', drawIcon('snow'));
+  add('절기', 's11', drawIcon('bell'));
+  add('절기', 's12', drawIcon('star'));
+  add('절기', 's13', drawIcon('candle'));
+  add('절기', 's14', T('추수감사절', {fill:'#ffb020'}));
+  add('절기', 's15', Bu('감사\n감사', '#ffcf7a'));
+  add('절기', 's16', drawIcon('maple'));
+  add('절기', 's17', drawIcon('pumpkin'));
+  add('절기', 's18', Pl('새해 복 많이 받으세요', {fill:'#ffe27a', size:58}));
+  add('절기', 's19', T('Happy New Year', {font:'Jua', fill:'#ffb020', size:100}));
   ['😍','🥰','😎','✌️','🙏','💖','⭐','🎉','🌸','👑','🐑','🕊️'].forEach((e, i) => add('이모지', 'e'+i, emojiSticker(e)));
-  add('데코', 'spark2', sparkleSticker());
-  add('데코', 'h1', heartSticker());
-  add('데코', 'h2', heartSticker('#ffb3c7'));
-  add('데코', 'h3', heartSticker('#8fd3ff'));
-  add('데코', 'cross', crossSticker());
-  add('데코', 'cross2', crossSticker('#ffd84a'));
   USTK.forEach(u => { const e = getImg(u.src); add('우리 교회', 'u_'+u.id, e.im); });
   STK_CATS = Object.keys(cats).map(k => [k, cats[k]]);
   if (USTK.length) { const u = STK_CATS.pop(); STK_CATS.splice(1, 0, u); }
+  // 아직 받지 않은 글자가 있으면 받은 뒤 한 번 더 그려요
+  if (!buildStickers.waiting) { buildStickers.waiting = true; stickerFontsReady().then(ch => { buildStickers.waiting = false; if (ch) { buildStickers(); if (cur === 'deco' && SC.deco && SC.deco.buildCats) SC.deco.buildCats(); } }); }
 }
 function stickerImage(id){ const s = STK[id]; if (!s) return null; const [w] = dims(s.img); return w ? s.img : null; }
 
@@ -1531,7 +1676,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 g';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 h';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -2343,7 +2488,7 @@ try { await Promise.race([document.fonts.ready, sleep(2500)]); await Promise.rac
 await Promise.all(USTK.map(u => getImg(u.src).p));
 buildStickers();
 go('home');
-if (/[?&]debug\b/.test(location.search)) window.__c4 = { Cam, makeVideo:() => makeVideo(Final.token), detectHoles, punchWhite, punchAt, Editor, buildSheet, get sess(){ return sess; }, get FRAMES(){ return FRAMES; }, Final };
+if (/[?&]debug\b/.test(location.search)) window.__c4 = { get STK(){ return STK; }, get STK_CATS(){ return STK_CATS; }, Cam, makeVideo:() => makeVideo(Final.token), detectHoles, punchWhite, punchAt, Editor, buildSheet, get sess(){ return sess; }, get FRAMES(){ return FRAMES; }, Final };
 })();
 </script>
 
