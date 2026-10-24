@@ -933,7 +933,7 @@ const Cam = { video:null, stream:null, ok:false, demo:null, err:null, starting:n
         }
         this.ok = true; this.cur = id; this.demo = null; this.err = null; this.watch(); this.label();
       } catch(e) { this.ok = false; this.err = e; this.makeDemo(); }
-      this.starting = null; return this.ok;
+      this.starting = null; this.label(); return this.ok;
     })();
     return this.starting;
   },
@@ -969,7 +969,7 @@ const Cam = { video:null, stream:null, ok:false, demo:null, err:null, starting:n
     this.ok = false; this.cur = null;
   },
   async restart(){ this.stop(); return this.start(); },
-  label(){ const r = $('#camRes'); if (r) r.textContent = `카메라 화질: ${this.size() || '켜는 중'} · 화면이 멈추면 저절로 낮춰요`; },
+  label(){ const r = $('#camRes'); if (!r) return; r.textContent = !this.ok && this.err && !this.starting ? `카메라를 못 켰어요: ${this.err.message || this.err.name}` : `카메라 화질: ${this.size() || '켜는 중'} · 화면이 멈추면 저절로 낮춰요`; r.style.color = !this.ok && this.err ? '#b4243f' : ''; },
   // 1초마다 화면이 움직이는지 보고, 3초 동안 그대로면 화질을 낮춰 다시 켜요
   watch(){
     clearInterval(this.wt); let last = -1, still = 0;
@@ -1457,7 +1457,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 d';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 e';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };

@@ -9,9 +9,9 @@ import android.hardware.usb.UsbDevice;
 import android.os.Handler;
 import android.os.HandlerThread;
 
-import com.serenegiant.usb.IFrameCallback;
+import com.herohan.uvcapp.CameraHelper;
+import com.herohan.uvcapp.ICameraHelper;
 import com.serenegiant.usb.Size;
-import com.serenegiant.usb.USBMonitor;
 import com.serenegiant.usb.UVCCamera;
 import com.serenegiant.usb.UVCParam;
 
@@ -29,8 +29,8 @@ final class UsbCam {
 
   private final Context ctx;
   private final Handler h;
-  private USBMonitor monitor;
-  private UVCCamera cam;
+  private ICameraHelper helper;
+  private UsbDevice dev;
   private Done pending;
   private int wantW = 1280, wantH = 720;
 
@@ -52,7 +52,6 @@ final class UsbCam {
   }
 
   synchronized List<UsbDevice> cameras() {
-    ensureMonitor();
     List<UsbDevice> out = new ArrayList<>();
     for (UsbDevice d : usbManager().getDeviceList().values()) if (isCamera(d)) out.add(d);
     return out;
@@ -73,16 +72,34 @@ final class UsbCam {
     return b.length() == 0 ? "꽂힌 USB 장치가 하나도 안 보여요" : b.toString().trim();
   }
 
-  private synchronized void ensureMonitor() {
-    if (monitor != null) return;
-    monitor = new USBMonitor(ctx, new USBMonitor.OnDeviceConnectListener() {
+  /**
+   * 라이브러리가 권하는 순서대로 열어요: 장치 고르기(허용 창) → 카메라 열기 → 화면 받기.
+   * 라이브러리가 안 보이는 화면에 먼저 그려 줘야 장면이 흘러나와요.
+   */
+  private void ensureHelper() {
+    if (helper != null) return;
+    helper = new CameraHelper();
+    helper.setStateCallback(new ICameraHelper.StateCallback() {
       @Override public void onAttach(UsbDevice d) {}
-      @Override public void onDetach(UsbDevice d) { if (cam != null && d.equals(cam.getDevice())) close(); }
-      @Override public void onDeviceOpen(UsbDevice d, USBMonitor.UsbControlBlock cb, boolean createNew) { h.post(() -> open(cb)); }
-      @Override public void onDeviceClose(UsbDevice d, USBMonitor.UsbControlBlock cb) {}
+      @Override public void onDeviceOpen(UsbDevice d, boolean first) {
+        Size want = new Size(UVCCamera.UVC_VS_FRAME_MJPEG, wantW, wantH, 30, new ArrayList<>());
+        helper.openCamera(new UVCParam(want, UVCCamera.getRecommendedPlatformQuirks()));
+      }
+      @Override public void onCameraOpen(UsbDevice d) {
+        try {
+          Size cur = helper.getPreviewSize();
+          final int w = cur.width, hgt = cur.height;
+          helper.setFrameCallback(f -> encode(f, w, hgt), UVCCamera.PIXEL_FORMAT_NV21);
+          helper.startPreview();
+          finish(true, "", w, hgt);
+        } catch (Exception e) { finish(false, "웹캠 화면을 켜지 못했어요: " + e.getMessage(), 0, 0); }
+      }
+      @Override public void onCameraClose(UsbDevice d) {}
+      @Override public void onDeviceClose(UsbDevice d) {}
+      @Override public void onDetach(UsbDevice d) { synchronized (lock) { jpeg = null; } }
       @Override public void onCancel(UsbDevice d) { finish(false, "웹캠 사용을 허용하지 않았어요", 0, 0); }
-    }, h);
-    monitor.register();
+      @Override public void onError(UsbDevice d, com.herohan.uvcapp.CameraException e) { finish(false, "웹캠 오류: " + e.getMessage(), 0, 0); }
+    });
   }
 
   /** 웹캠 켜기. 처음에는 "허용할까요?" 창이 떠요. */
@@ -93,39 +110,18 @@ final class UsbCam {
         wantW = w; wantH = hgt; pending = done;
         List<UsbDevice> list = cameras();
         if (list.isEmpty()) { finish(false, "USB 웹캠을 찾지 못했어요. 허브와 선을 확인해 주세요", 0, 0); return; }
-        monitor.requestPermission(list.get(0));
+        ensureHelper();
+        dev = list.get(0);
+        helper.selectDevice(dev);
+        // 열리는 데 오래 걸리면 알려줘요
+        h.postDelayed(() -> { if (pending == done) finish(false, "웹캠이 응답하지 않아요. 뽑았다 다시 꽂아 주세요", 0, 0); }, 15000);
       } catch (Exception e) { finish(false, String.valueOf(e.getMessage()), 0, 0); }
     });
   }
 
-  private void finish(boolean ok, String msg, int w, int hgt) {
+  private synchronized void finish(boolean ok, String msg, int w, int hgt) {
     Done d = pending; pending = null;
     if (d != null) d.done(ok, msg, w, hgt);
-  }
-
-  private void open(USBMonitor.UsbControlBlock cb) {
-    try {
-      UVCCamera c = new UVCCamera(new UVCParam(null, UVCCamera.getRecommendedPlatformQuirks()));
-      int r = c.open(cb);
-      if (r != 0) { c.destroy(); finish(false, "웹캠을 열지 못했어요 (" + r + ")", 0, 0); return; }
-      // 원하는 크기 이하에서 가장 큰 MJPEG 크기를 골라요 (MJPEG이 USB로 더 많이 보낼 수 있어요)
-      Size best = null;
-      List<Size> sizes = c.getSupportedSizeList();
-      if (sizes != null) for (Size s : sizes) {
-        if (s.width > wantW || s.height > wantH) continue;
-        boolean mj = s.type == UVCCamera.UVC_VS_FRAME_MJPEG, bmj = best != null && best.type == UVCCamera.UVC_VS_FRAME_MJPEG;
-        if (best == null || (mj && !bmj) || (mj == bmj && s.width * s.height > best.width * best.height)) best = s;
-      }
-      if (best != null) { try { c.setPreviewSize(best); } catch (Exception ignored) {} }
-      Size cur = c.getPreviewSize();
-      final int w = cur.width, hgt = cur.height;
-      c.setFrameCallback(new IFrameCallback() {
-        @Override public void onFrame(ByteBuffer f) { encode(f, w, hgt); }
-      }, UVCCamera.PIXEL_FORMAT_NV21);
-      c.startPreview();
-      cam = c;
-      finish(true, "", w, hgt);
-    } catch (Exception e) { finish(false, "웹캠을 켜지 못했어요: " + e.getMessage(), 0, 0); }
   }
 
   private void encode(ByteBuffer f, int w, int hgt) {
@@ -155,8 +151,9 @@ final class UsbCam {
   }
 
   void close() {
-    UVCCamera c = cam; cam = null;
-    if (c != null) { try { c.stopPreview(); } catch (Exception ignored) {} try { c.destroy(); } catch (Exception ignored) {} }
+    // 다음에 켤 때 처음부터 다시 열리도록 연결을 통째로 정리해요
+    ICameraHelper hp = helper; helper = null;
+    if (hp != null) { try { hp.stopPreview(); } catch (Exception ignored) {} try { hp.closeCamera(); } catch (Exception ignored) {} try { hp.release(); } catch (Exception ignored) {} }
     synchronized (lock) { jpeg = null; }
   }
 
