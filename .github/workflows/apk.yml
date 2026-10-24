@@ -15,7 +15,17 @@ jobs:
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.14.3' }
-      - run: gradle -p android assembleRelease --no-daemon
+      - name: 앱 빌드
+        run: |
+          set -o pipefail
+          gradle -p android assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+      - name: 실패하면 기록 올리기
+        if: failure()
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          gh release view app >/dev/null 2>&1 || gh release create app --title "태블릿 앱" --notes "교회 인생네컷 안드로이드 앱"
+          tail -c 200000 build.log > build-log.txt
+          gh release upload app build-log.txt --clobber
       - run: cp android/app/build/outputs/apk/release/app-release.apk church-4cut.apk
       - name: 내려받을 곳에 올리기
         env: { GH_TOKEN: '${{ github.token }}' }
