@@ -940,7 +940,8 @@ const Cam = { video:null, stream:null, ok:false, demo:null, err:null, starting:n
   // USB 웹캠: 앱이 JPEG로 한 장씩 주면 캔버스에 그려서 카메라처럼 써요
   async startUsb(){
     if (!APP || !APP.uvcStart) throw Object.assign(new Error('USB 웹캠은 태블릿 앱에서만 쓸 수 있어요'), {name:'UsbCam'});
-    const [rw, rh] = CAM_RES[Math.min(S.cam.res || 0, CAM_RES.length - 1)];
+    // USB 웹캠은 1280×720부터 시작해요 (허브로 연결하면 큰 화면은 자주 끊겨요)
+    const [rw, rh] = CAM_RES[Math.min(Math.max(1, S.cam.res || 0), CAM_RES.length - 1)];
     const r = await booth('uvcStart', rw, rh);
     if (!r.ok) throw Object.assign(new Error(r.msg), {name:'UsbCam'});
     const cv = this.usbCv || (this.usbCv = document.createElement('canvas')); cv.width = r.w; cv.height = r.h;
@@ -1456,7 +1457,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 c';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 d';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
