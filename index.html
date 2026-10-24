@@ -949,10 +949,20 @@ const Cam = { video:null, stream:null, ok:false, demo:null, err:null, starting:n
     (async () => {
       while (u.on) {
         try {
-          const res = await fetch('__uvc/frame?s=' + u.seq, {cache:'no-store'});
-          if (res.status !== 200) { await sleep(20); continue; }
-          u.seq = +res.headers.get('X-Seq') || u.seq + 1;
-          const bm = await createImageBitmap(await res.blob());
+          let blob;
+          if (APP.uvcFrame) {
+            // 앱에게 직접 받아요 (주소로 받는 길이 막혀도 돼요)
+            const f = APP.uvcFrame(String(u.seq)); if (!f) { await sleep(30); continue; }
+            const i = f.indexOf(','); u.seq = +f.slice(0, i) || u.seq + 1;
+            const b = atob(f.slice(i + 1)), a = new Uint8Array(b.length); for (let k = 0; k < b.length; k++) a[k] = b.charCodeAt(k);
+            blob = new Blob([a], {type:'image/jpeg'});
+          } else {
+            const res = await fetch('__uvc/frame?s=' + u.seq, {cache:'no-store'});
+            if (res.status !== 200) { await sleep(20); continue; }
+            u.seq = +res.headers.get('X-Seq') || u.seq + 1;
+            blob = await res.blob();
+          }
+          const bm = await createImageBitmap(blob);
           if (!u.on) { bm.close(); break; }
           if (cv.width !== bm.width || cv.height !== bm.height) { cv.width = u.w = bm.width; cv.height = u.h = bm.height; }
           cv.getContext('2d').drawImage(bm, 0, 0); bm.close(); u.n++;
@@ -960,7 +970,7 @@ const Cam = { video:null, stream:null, ok:false, demo:null, err:null, starting:n
       }
     })();
     const t0 = performance.now(); while (!u.n && performance.now() - t0 < 6000) await sleep(100);
-    if (!u.n) { this.stop(); throw Object.assign(new Error('웹캠은 연결됐는데 화면이 오지 않아요'), {name:'UsbCam'}); }
+    if (!u.n) { this.stop(); let st = ''; try { st = APP.uvcStats ? ` (${APP.uvcStats()})` : ''; } catch(e) {} throw Object.assign(new Error('웹캠은 연결됐는데 화면이 오지 않아요' + st), {name:'UsbCam'}); }
   },
   stop(){
     clearInterval(this.wt);
@@ -1457,7 +1467,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 e';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 f';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -2254,4 +2264,5 @@ go('home');
 if (/[?&]debug\b/.test(location.search)) window.__c4 = { Cam, makeVideo:() => makeVideo(Final.token), detectHoles, punchWhite, punchAt, Editor, buildSheet, get sess(){ return sess; }, get FRAMES(){ return FRAMES; }, Final };
 })();
 </script>
+
 </body></html>

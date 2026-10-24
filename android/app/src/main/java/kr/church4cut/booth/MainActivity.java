@@ -155,7 +155,7 @@ public class MainActivity extends Activity {
   }
 
   final class Bridge {
-    @JavascriptInterface public String version() { return "6"; }
+    @JavascriptInterface public String version() { return "7"; }
 
     /** USB 웹캠이 꽂혀 있는지 (이름 목록) */
     @JavascriptInterface public String uvcList() {
@@ -171,6 +171,15 @@ public class MainActivity extends Activity {
     }
 
     @JavascriptInterface public void uvcStop() { usb.stop(); }
+
+    /** 새 장면이 있으면 "번호,base64" 를, 없으면 빈 글자를 바로 돌려줘요 (주소 가로채기 없이 넘기는 길) */
+    @JavascriptInterface public String uvcFrame(String after) {
+      long a = -1; try { a = Long.parseLong(after); } catch (Exception ignored) {}
+      Object[] f = usb.frame(a, 0);
+      return f == null ? "" : f[1] + "," + Base64.encodeToString((byte[]) f[0], Base64.NO_WRAP);
+    }
+
+    @JavascriptInterface public String uvcStats() { return usb.stats(); }
 
     @JavascriptInterface public String usbDump() { try { return usb.dump(); } catch (Exception e) { return "확인 실패: " + e; } }
 

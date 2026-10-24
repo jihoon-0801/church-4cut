@@ -38,6 +38,7 @@ final class UsbCam {
   private byte[] jpeg;
   private long seq;
   private volatile boolean encoding;
+  volatile long rawFrames;   // 웹캠에서 받은 장면 수 (원인 찾기용)
 
   UsbCam(Context ctx) {
     this.ctx = ctx.getApplicationContext();
@@ -143,6 +144,7 @@ final class UsbCam {
   }
 
   private void encode(ByteBuffer f, int w, int hgt) {
+    rawFrames++;
     if (encoding) return;   // 바쁘면 이번 장면은 건너뛰어요
     encoding = true;
     try {
@@ -169,6 +171,8 @@ final class UsbCam {
   }
 
   /** 화면만 멈춰요. 웹캠은 연 채로 두어야 다시 켤 때 '쓰는 중' 오류가 안 나요 */
+  String stats() { synchronized (lock) { return "웹캠 장면 " + rawFrames + "개 · 변환 " + seq + "개 · " + camW + "×" + camH + (opened ? " · 열림" : " · 닫힘"); } }
+
   void close() {
     if (helper != null && opened) { try { helper.stopPreview(); } catch (Exception ignored) {} }
     synchronized (lock) { jpeg = null; }
