@@ -1669,10 +1669,17 @@ async function cloudUpload(blob, kind, publicId){
 const Sync = {
   busy:false, lastPull:0, msg:'',
   cloud(){ return S.qr.cloud || 'xnwtjp3o'; },
-  url(n){ return `https://res.cloudinary.com/${encodeURIComponent(this.cloud())}/raw/upload/c4sync/${S.sync.code}/${n}.gz`; },   // Cloudinary가 raw 파일 이름 끝에 .gz를 붙여요
+  // Cloudinary는 raw 파일 이름 끝에 올린 파일의 확장자를 붙여요 (.txt, 예전 것은 .gz)
+  found:{}, lastStatus:'',
+  url(n, ext){ return `https://res.cloudinary.com/${encodeURIComponent(this.cloud())}/raw/upload/c4sync/${S.sync.code}/${n}.${ext || this.found[S.sync.code + '/' + n] || 'txt'}`; },
   shared(){ const o = clone(S); delete o.cam; delete o.sync; delete o.count; return {settings:o, frames:FRAMES, stickers:USTK}; },
   async hash(str){ try { const d = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str)); return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join(''); } catch(e) { return String(str.length); } },
-  async exists(n){ if (n <= 0) return true; try { const r = await fetch(this.url(n) + '?t=' + Date.now(), {method:'HEAD', cache:'no-store'}); return r.ok; } catch(e) { throw new Error('인터넷 연결을 확인해 주세요'); } },
+  async exists(n){ if (n <= 0) return true;
+    for (const ext of ['txt', 'gz']) {
+      try { const u = this.url(n, ext) + '?t=' + Date.now(); let r; try { r = await fetch(u, {method:'HEAD', cache:'no-store'}); } catch(e) { r = await fetch(u, {cache:'no-store'}); } if (r.ok) { this.found[S.sync.code + '/' + n] = ext; return true; } this.lastStatus = String(r.status); }
+      catch(e) { this.lastStatus = '연결 실패 ' + (e.message || e); }
+    }
+    return false; },
   async latest(){
     let lo = S.sync.ver || 0; if (lo && !(await this.exists(lo))) lo = 0;
     let step = 1; while (await this.exists(lo + step)) { lo += step; step *= 2; }
@@ -1693,8 +1700,9 @@ const Sync = {
       this.note('다른 기기와 맞추는 중이에요…');
       const n = (await this.latest()) + 1, blob = await this.pack(str);
       if (blob.size > 9.5e6) throw new Error('프레임 그림이 너무 커요 (10MB 넘음). 안 쓰는 프레임을 지워 주세요');
-      const j = await cloudUpload(new File([blob], 'sync.gz'), 'raw', `c4sync/${S.sync.code}/${n}`);
-      const want = `c4sync/${S.sync.code}/${n}`; if (j.public_id !== want && j.public_id !== want + '.gz') throw new Error('Cloudinary 업로드 설정이 파일 이름을 바꿔요 (' + j.public_id + ')');
+      const j = await cloudUpload(new File([blob], 'sync.txt'), 'raw', `c4sync/${S.sync.code}/${n}`);
+      const want = `c4sync/${S.sync.code}/${n}`; if (![want, want + '.txt', want + '.gz'].includes(j.public_id)) throw new Error('Cloudinary 업로드 설정이 파일 이름을 바꿔요 (' + j.public_id + ')');
+      this.found[S.sync.code + '/' + n] = (j.public_id.match(/\.(txt|gz)$/) || [, 'txt'])[1];
       S.sync.ver = n; S.sync.hash = h; S.sync.at = Date.now(); save();
       this.note(`올렸어요 (${new Date().toLocaleTimeString('ko-KR', {hour:'numeric', minute:'2-digit'})})`);
     } catch(e) { this.note('올리지 못했어요: ' + e.message); }
@@ -1707,7 +1715,7 @@ const Sync = {
     this.busy = true; this.lastPull = Date.now();
     try {
       const n = await this.latest();
-      if (!n) { this.note('아직 올라온 내용이 없어요'); return false; }
+      if (!n) { this.note(`아직 올라온 내용이 없어요 (코드 ${S.sync.code} · 확인 결과 ${this.lastStatus || '-'})`); return false; }
       if (n <= (S.sync.ver || 0) && !force) return false;
       this.note('새 내용을 받는 중이에요…');
       const r = await fetch(this.url(n) + '?t=' + Date.now(), {cache:'no-store'}); if (!r.ok) throw new Error('받기 실패 ' + r.status);
@@ -1801,7 +1809,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-24 n';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 o';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
