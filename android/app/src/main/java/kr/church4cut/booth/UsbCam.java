@@ -1,7 +1,11 @@
 package kr.church4cut.booth;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.ImageFormat;
+import android.graphics.PixelFormat;
+import android.media.Image;
+import android.media.ImageReader;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.usb.UsbConstants;
@@ -75,7 +79,54 @@ final class UsbCam {
 
   // 같은 웹캠을 두 번 열면 "이미 쓰는 중(busy)" 오류가 나서, 한 번 연 것은 끝까지 다시 써요
   private volatile boolean devOpen, opening, opened;
-  private int retries, camW, camH;
+  private int retries, camW, camH, camType;
+  private ImageReader reader;
+  private String sizes = "";
+  volatile long glFrames;   // 그리기 판으로 받은 장면 수
+
+  /** 웹캠이 주는 크기 중 원하는 크기에 가장 가까운 MJPEG(압축)을 골라요. 허브로는 압축 안 된 큰 화면이 잘 안 와요. */
+  private Size pick(List<Size> list, Size cur) {
+    if (list == null || list.isEmpty()) { sizes = "크기 목록 없음"; return null; }
+    StringBuilder b = new StringBuilder(); int mj = 0, yu = 0;
+    for (Size z : list) if (z.type == UVCCamera.UVC_VS_FRAME_MJPEG) mj++; else yu++;
+    b.append("MJPEG ").append(mj).append("개, 기타 ").append(yu).append("개");
+    sizes = b.toString();
+    Size best = null; long bestD = Long.MAX_VALUE;
+    for (Size z : list) {
+      if (mj > 0 && z.type != UVCCamera.UVC_VS_FRAME_MJPEG) continue;
+      if (mj == 0 && z.width > 640) continue;   // 압축이 없으면 작은 화면으로
+      long d = Math.abs((long) z.width * z.height - (long) wantW * wantH) + (z.width > wantW ? 1 : 0);
+      if (d < bestD) { bestD = d; best = z; }
+    }
+    if (best == null) return null;
+    best = best.clone();
+    if (best.fpsList != null && !best.fpsList.isEmpty() && !best.fpsList.contains(best.fps)) best.fps = best.fpsList.get(0);
+    if (best.fpsList != null && best.fpsList.contains(30)) best.fps = 30;
+    return best;
+  }
+
+  private void fromReader(ImageReader r) {
+    Image im = null;
+    try {
+      im = r.acquireLatestImage(); if (im == null) return;
+      glFrames++;
+      if (encoding) return;
+      encoding = true;
+      try {
+        Image.Plane pl = im.getPlanes()[0]; int w = im.getWidth(), hgt = im.getHeight();
+        int ps = pl.getPixelStride(), rs = pl.getRowStride();
+        Bitmap bm = Bitmap.createBitmap(rs / ps, hgt, Bitmap.Config.ARGB_8888);
+        bm.copyPixelsFromBuffer(pl.getBuffer());
+        if (bm.getWidth() != w) { Bitmap c = Bitmap.createBitmap(bm, 0, 0, w, hgt); bm.recycle(); bm = c; }
+        ByteArrayOutputStream o = new ByteArrayOutputStream(w * hgt / 4);
+        bm.compress(Bitmap.CompressFormat.JPEG, 85, o); bm.recycle();
+        publish(o.toByteArray());
+      } finally { encoding = false; }
+    } catch (Exception ignored) {
+    } finally { if (im != null) im.close(); }
+  }
+
+  private void publish(byte[] j) { synchronized (lock) { jpeg = j; seq++; lock.notifyAll(); } }
 
   private UVCParam param() {
     return new UVCParam(new Size(UVCCamera.UVC_VS_FRAME_MJPEG, wantW, wantH, 30, new ArrayList<>()), UVCCamera.getRecommendedPlatformQuirks());
@@ -101,9 +152,18 @@ final class UsbCam {
         opening = false; opened = true;
         try {
           Size cur = helper.getPreviewSize();
-          camW = cur.width; camH = cur.height;
+          Size best = pick(helper.getSupportedSizeList(), cur);
+          if (best != null && (cur == null || best.type != cur.type || best.width != cur.width || best.height != cur.height)) { helper.setPreviewSize(best); cur = best; }
+          camW = cur.width; camH = cur.height; camType = cur.type;
           final int w = camW, hgt = camH;
           helper.setFrameCallback(f -> encode(f, w, hgt), UVCCamera.PIXEL_FORMAT_NV21);
+          // 장면을 받는 두 번째 길: 화면 그리기용 판(ImageReader)을 하나 붙여요
+          if (reader == null || reader.getWidth() != w || reader.getHeight() != hgt) {
+            if (reader != null) { try { helper.removeSurface(reader.getSurface()); } catch (Exception ignored) {} reader.close(); }
+            reader = ImageReader.newInstance(w, hgt, PixelFormat.RGBA_8888, 2);
+            reader.setOnImageAvailableListener(UsbCam.this::fromReader, h);
+            helper.addSurface(reader.getSurface(), false);
+          }
           helper.startPreview();
           finish(true, "", w, hgt);
         } catch (Exception e) { finish(false, "웹캠 화면을 켜지 못했어요: " + e.getMessage(), 0, 0); }
@@ -148,10 +208,11 @@ final class UsbCam {
     if (encoding) return;   // 바쁘면 이번 장면은 건너뛰어요
     encoding = true;
     try {
-      byte[] nv = new byte[f.remaining()]; f.get(nv);
+      if (f.remaining() < w * hgt * 3 / 2) return;
+      byte[] nv = new byte[w * hgt * 3 / 2]; f.get(nv);
       ByteArrayOutputStream o = new ByteArrayOutputStream(w * hgt / 4);
       new YuvImage(nv, ImageFormat.NV21, w, hgt, null).compressToJpeg(new Rect(0, 0, w, hgt), 85, o);
-      synchronized (lock) { jpeg = o.toByteArray(); seq++; lock.notifyAll(); }
+      publish(o.toByteArray());
     } catch (Exception ignored) {
     } finally { encoding = false; }
   }
@@ -171,7 +232,7 @@ final class UsbCam {
   }
 
   /** 화면만 멈춰요. 웹캠은 연 채로 두어야 다시 켤 때 '쓰는 중' 오류가 안 나요 */
-  String stats() { synchronized (lock) { return "웹캠 장면 " + rawFrames + "개 · 변환 " + seq + "개 · " + camW + "×" + camH + (opened ? " · 열림" : " · 닫힘"); } }
+  String stats() { synchronized (lock) { return "웹캠 장면 " + rawFrames + "개 · 그리기 " + glFrames + "개 · 변환 " + seq + "개 · " + camW + "×" + camH + (camType == UVCCamera.UVC_VS_FRAME_MJPEG ? " MJPEG" : " 기타") + " · " + sizes + (opened ? " · 열림" : " · 닫힘"); } }
 
   void close() {
     if (helper != null && opened) { try { helper.stopPreview(); } catch (Exception ignored) {} }
