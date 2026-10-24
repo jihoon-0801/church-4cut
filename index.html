@@ -905,25 +905,46 @@ function buildStickers(){
 function stickerImage(id){ const s = STK[id]; if (!s) return null; const [w] = dims(s.img); return w ? s.img : null; }
 
 /* ================= 카메라 ================= */
-const Cam = { video:null, stream:null, ok:false, demo:null, err:null, starting:null,
+// 화면이 멈추면 한 단계씩 낮춰 다시 켜요 (USB 웹캠은 큰 화면을 못 보내는 경우가 많아요)
+const CAM_RES = [[1920, 1080], [1280, 720], [640, 480]];
+const Cam = { video:null, stream:null, ok:false, demo:null, err:null, starting:null, wt:null, fixing:false,
   start(){
     if (this.ok) return Promise.resolve(true);
     if (this.starting) return this.starting;
     this.starting = (async () => {
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('no'), {name:'NoMedia'});
-        const v = {width:{ideal:1920}, height:{ideal:1080}};
+        const [rw, rh] = CAM_RES[Math.min(S.cam.res || 0, CAM_RES.length - 1)];
+        const v = {width:{ideal:rw}, height:{ideal:rh}};
         if (S.cam.deviceId) v.deviceId = {ideal:S.cam.deviceId}; else v.facingMode = 'user';
         this.stream = await navigator.mediaDevices.getUserMedia({video:v, audio:false});
         const vid = this.video || document.createElement('video');
+        // 화면에 붙어 있어야 안드로이드가 새 장면을 계속 보내줘요 (보이지 않게 아주 작게)
+        if (!vid.isConnected) { vid.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none'; document.body.appendChild(vid); }
         vid.muted = true; vid.playsInline = true; vid.setAttribute('playsinline', ''); vid.srcObject = this.stream;
-        await vid.play(); this.video = vid; this.ok = true; this.demo = null; this.err = null;
+        await vid.play(); this.video = vid; this.ok = true; this.demo = null; this.err = null; this.watch();
+        vid.addEventListener('resize', () => { const r = $('#camRes'); if (r) r.textContent = `카메라 화질: ${this.size()} · 화면이 멈추면 저절로 낮춰요`; });
       } catch(e) { this.ok = false; this.err = e; this.makeDemo(); }
       this.starting = null; return this.ok;
     })();
     return this.starting;
   },
   async restart(){ if (this.stream) this.stream.getTracks().forEach(t => t.stop()); this.stream = null; this.ok = false; return this.start(); },
+  // 1초마다 화면이 움직이는지 보고, 3초 동안 그대로면 화질을 낮춰 다시 켜요
+  watch(){
+    clearInterval(this.wt); let last = -1, still = 0;
+    this.wt = setInterval(() => { const v = this.video;
+      if (!this.ok || !v || document.hidden || this.fixing) { still = 0; return; }
+      const t = v.currentTime; still = t === last ? still + 1 : 0; last = t;
+      if (still >= 3) { still = 0; this.fix(); } }, 1000);
+  },
+  async fix(){
+    this.fixing = true;
+    const lv = Math.min((S.cam.res || 0) + 1, CAM_RES.length - 1); S.cam.res = lv; save();
+    toast(`카메라 화면이 멈춰서 다시 켜는 중이에요 (${CAM_RES[lv][0]}×${CAM_RES[lv][1]})`, 3000);
+    await this.restart(); this.fixing = false;
+  },
+  size(){ const v = this.video; return this.ok && v && v.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : ''; },
   source(){
     if (this.ok && this.video && this.video.readyState >= 2 && this.video.videoWidth) return [this.video, this.video.videoWidth, this.video.videoHeight];
     if (this.demo) { this.drawDemo(); return [this.demo, this.demo.width, this.demo.height]; }
@@ -1395,7 +1416,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-23 e';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-24 a';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -1528,8 +1549,12 @@ SC.admin = {
       ['front','top'].forEach(m => seg.appendChild(el('button', {'aria-pressed':String(this.camMode === m), onclick:() => { this.camMode = m; this.render(); }}, m === 'front' ? '정면 촬영 설정' : '탑뷰 촬영 설정')));
       const c = S.cam[this.camMode];
       const camSel = el('select', {class:'f', id:'camSel', 'aria-label':'카메라 선택'});
-      camSel.addEventListener('change', async () => { S.cam.deviceId = camSel.value; save(); await Cam.restart(); });
-      p.appendChild(grp('카메라', seg, camSel, el('div', {class:'cam-prev'}, '<canvas id="adminCam"></canvas>'),
+      camSel.addEventListener('change', async () => { S.cam.deviceId = camSel.value; S.cam.res = 0; save(); await Cam.restart(); this.render(); });
+      const resRow = el('div', {class:'row'});
+      resRow.appendChild(el('span', {class:'small', id:'camRes'}, `카메라 화질: ${Cam.size() || '켜는 중'} · 화면이 멈추면 저절로 낮춰요`));
+      resRow.appendChild(btn('화질 낮추기', async () => { await Cam.fix(); this.render(); }));
+      resRow.appendChild(btn('가장 좋은 화질로', async () => { S.cam.res = 0; save(); await Cam.restart(); this.render(); }));
+      p.appendChild(grp('카메라', seg, camSel, resRow, el('div', {class:'cam-prev'}, '<canvas id="adminCam"></canvas>'),
         '<span class="small">카메라 각도와 크기를 맞추는 화면이에요. 실제 촬영 때는 손님이 고른 프레임 칸 모양(네모, 동그라미, 하트)으로 보여요.</span>',
         tog('거울처럼 좌우 반전', () => c.mirror, v => c.mirror = v),
         rng('확대', () => c.zoom, v => c.zoom = v, 1, 2.5, .05, v => (+v).toFixed(1) + '×'),
