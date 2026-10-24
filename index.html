@@ -1365,7 +1365,7 @@ function go(id){
   const prev = SC[cur]; if (prev && prev.leave) prev.leave();
   $$('.screen').forEach(s => s.hidden = s.id !== id);
   cur = id; if (SC[id] && SC[id].enter) SC[id].enter();
-  if (id === 'home' && S.sync.code) setTimeout(() => Sync.pull().then(ch => { if (ch && cur === 'home') go('home'); }), 1500);
+  if (id === 'home') setTimeout(() => Sync.heal().then(h => S.sync.code ? Sync.pull().then(ch => ch || h) : h).then(ch => { if (ch && cur === 'home') go('home'); }), 1500);
 }
 $$('.back').forEach(b => b.addEventListener('click', () => go(b.dataset.to)));
 (function loop(){ tickId++; const s = SC[cur]; if (s && s.tick) { try { s.tick(); } catch(e) { console.error(e); } } requestAnimationFrame(loop); })();
@@ -1717,6 +1717,17 @@ const Sync = {
     }
     this.walk(obj, (v, set) => { if (got.has(v)) set(got.get(v)); });
   },
+  // 예전 화면이 받아 둔 그림 주소(c4img:)가 남아 있으면 그림으로 바꿔 둬요
+  async heal(){
+    if (this.busy || this.healing) return false;
+    const live = {settings:S, frames:FRAMES, stickers:USTK}; let need = false;
+    this.walk(live, v => { if (v.startsWith('c4img:')) need = true; });
+    if (!need) return false;
+    this.healing = true;
+    try { await this.dropImages(live); save(); buildStickers(); this.note('프레임 그림을 다시 받았어요'); return true; }
+    catch(e) { this.note('프레임 그림을 받지 못했어요: ' + e.message); return false; }
+    finally { this.healing = false; }
+  },
   // 이 기기에서 바뀐 게 있으면 올려요
   async push(force){
     if (!S.sync.code || this.busy) return;
@@ -1842,7 +1853,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-25 a';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-25 b';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -2654,7 +2665,7 @@ try { await Promise.race([document.fonts.ready, sleep(2500)]); await Promise.rac
 await Promise.all(USTK.map(u => getImg(u.src).p));
 buildStickers();
 go('home');
-if (/[?&]debug\b/.test(location.search)) window.__c4 = { get STK(){ return STK; }, get STK_CATS(){ return STK_CATS; }, Cam, makeVideo:() => makeVideo(Final.token), detectHoles, punchWhite, punchAt, Editor, buildSheet, get sess(){ return sess; }, get FRAMES(){ return FRAMES; }, Final };
+if (/[?&]debug\b/.test(location.search)) window.__c4 = { get STK(){ return STK; }, get STK_CATS(){ return STK_CATS; }, Cam, makeVideo:() => makeVideo(Final.token), detectHoles, punchWhite, punchAt, Editor, buildSheet, get sess(){ return sess; }, get FRAMES(){ return FRAMES; }, Final, get S(){ return S; }, save, Sync };
 })();
 </script>
 
