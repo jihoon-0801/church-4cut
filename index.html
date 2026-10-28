@@ -803,11 +803,16 @@ function renderFrame(ctx, fr, o = {}){
     const p = o.photos && o.photos[i];
     inSlot(ctx, r, c => { if (p) drawCover(c, p, r); else placeholder(c, r, o.numbers ? i : null, fr.bg); });
   });
-  const ov = o.overlay || imgReady(fr.overlay); if (ov) ctx.drawImage(ov, 0, 0, W, H);
+  renderTop(ctx, fr, o);
+  (o.stickers || []).forEach(s => drawSticker(ctx, s));
+}
+// 사진 위에 덮이는 층 (덮는 그림, 그림 층, 글자). 촬영 화면에서도 겹쳐 보여 줘요
+function renderTop(ctx, fr, o = {}){
+  const W = fr.Wmm*MM;
+  const ov = o.overlay || imgReady(fr.overlay); if (ov) ctx.drawImage(ov, 0, 0, W, fr.Hmm*MM);
   for (const d of fr.decos || []) { const im = imgReady(d.src); if (im) ctx.drawImage(im, d.x, d.y, d.w, d.h); }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const t of fr.texts) { const s = resolveText(t.text); if (!s) continue; let size = t.size; ctx.font = fontStr(t, size); const mw = W*0.94, tw = ctx.measureText(s).width; if (tw > mw) { size *= mw/tw; ctx.font = fontStr(t, size); } ctx.fillStyle = t.color; ctx.fillText(s, t.x, t.y); }
-  (o.stickers || []).forEach(s => drawSticker(ctx, s));
 }
 function frameCanvas(fr, scale, o){ const c = document.createElement('canvas'); c.width = Math.round(fr.Wmm*MM*scale); c.height = Math.round(fr.Hmm*MM*scale); const x = c.getContext('2d'); x.scale(scale, scale); renderFrame(x, fr, o); return c; }
 // 캔버스 안에 프레임을 맞춰 넣는 변환
@@ -1489,15 +1494,18 @@ SC.shoot = {
     if (!sess) return;
     const cv = $('#shootCanvas'); sizeCanvas(cv, 1.5); const x = cv.getContext('2d');
     x.fillStyle = '#0e0d10'; x.fillRect(0, 0, cv.width, cv.height);
-    const fr = sess.frame, a = slotAspect(fr), r = fitRect(cv.width, cv.height, a, 0.05);
-    if (drawLive(x, r, fr.slots[0].shape, a, PRESETS[sess.filter], sess.mode, fr.slots[0].mask)) Clip.draw(gl ? glc : c2d);
+    const fr = sess.frame, a = slotAspect(fr), r = fitRect(cv.width, cv.height, a, 0.05), sl = fr.slots[this.slot || 0] || fr.slots[0];
+    if (drawLive(x, r, sl.shape, a, PRESETS[sess.filter], sess.mode, sl.mask)) Clip.draw(gl ? glc : c2d);
+    // 지금 찍는 칸 위에 덮이는 프레임 그림을 그대로 보여 줘요 (얼굴이 가려지는지 보이게)
+    if (this.top) { const k = r.w / sl.w; inSlot(x, {...r, shape:sl.shape, mask:sl.mask}, c => c.drawImage(this.top, r.x - sl.x * k, r.y - sl.y * k, this.top.width * k, this.top.height * k)); }
     if (this.pose) drawPose(x, r, this.pose, S.poseMode, S.poseAlpha);
   },
   wait(ms){ return new Promise(res => { const t = setTimeout(res, ms); this.skip = () => { clearTimeout(t); res('skip'); }; }); },
   async run(tk){
     const fr = sess.frame, n = fr.slots.length, total = n + S.extraShots, a = slotAspect(fr);
     const phrases = S.phrases.split('\n').map(s => s.trim()).filter(Boolean);
-    sess.shots = []; this.pose = null;
+    sess.shots = []; this.pose = null; this.slot = 0;
+    this.top = null; try { await ensureImgs(fr); const t = document.createElement('canvas'); t.width = Math.round(fr.Wmm*MM); t.height = Math.round(fr.Hmm*MM); renderTop(t.getContext('2d'), fr); this.top = t; } catch(e) {}
     // 포즈 가이드: 켜져 있으면 컷마다 다른 포즈를 섞어서 보여 줘요 (완성 사진에는 안 들어가요)
     const mine = S.poseOn ? S.poses.filter(q => q.on !== false && (!q.mode || q.mode === sess.mode)) : [];
     const poseImgs = (await Promise.all(mine.map(q => loadImage(q.img).then(img => ({img, label:'포즈를 따라 해 보세요!'})).catch(() => null)))).filter(Boolean);
@@ -1506,6 +1514,7 @@ SC.shoot = {
     await Cam.start(sess.mode); if (tk !== this.token) return;
     for (let k = 0; k < total; k++) {
       $('#shotCounter').textContent = `${k} / ${total}`;
+      this.slot = k % n;
       const pz = poseImgs.length ? poseImgs[k % poseImgs.length] : null; this.pose = pz && pz.img;
       const ph = $('#phrase'); if (pz) { ph.hidden = false; ph.textContent = pz.label; } else if (phrases.length) { ph.hidden = false; ph.textContent = phrases[Math.floor(Math.random()*phrases.length)]; } else ph.hidden = true;
       let skipped = false;
@@ -1942,7 +1951,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-28 c';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-28 d';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
