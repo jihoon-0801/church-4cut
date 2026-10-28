@@ -571,7 +571,7 @@ const DEFAULT_SETTINGS = {
   print:{ paperW:100, paperH:148, cut:true, offX:0, offY:0, maxCopies:4 },
   qr:{ cloud:'', preset:'', base:'' },
   sync:{ code:'', ver:0, hash:'', at:0 },
-  poses:[], poseOn:true, poseMode:'corner', poseAlpha:40, poseBuiltin:true, poseOffB:[],
+  poses:[], poseOn:true, poseMode:'corner', poseAlpha:40,
 };
 function frameStrip(name, mode, bg, shape, ink, title){
   return { id:uid(), name, mode, enabled:true, Wmm:50, Hmm:148, bg, bgImg:null, overlay:null,
@@ -1509,7 +1509,6 @@ SC.shoot = {
     // 포즈 가이드: 켜져 있으면 컷마다 다른 포즈를 섞어서 보여 줘요 (완성 사진에는 안 들어가요)
     const mine = S.poseOn ? S.poses.filter(q => q.on !== false && (!q.mode || q.mode === sess.mode)) : [];
     const poseImgs = (await Promise.all(mine.map(q => loadImage(q.img).then(img => ({img, label:'포즈를 따라 해 보세요!'})).catch(() => null)))).filter(Boolean);
-    if (S.poseOn && S.poseBuiltin) POSE_BUILTIN.forEach(([k, label]) => { if (!S.poseOffB.includes(k)) poseImgs.push({img:poseCanvas(k), label}); });
     poseImgs.sort(() => Math.random() - .5);
     await Cam.start(sess.mode); if (tk !== this.token) return;
     for (let k = 0; k < total; k++) {
@@ -1537,64 +1536,6 @@ SC.shoot = {
     go(sess.shots.length > n ? 'pick' : 'deco');
   },
 };
-// 기본 포즈 그림: 사진을 안 넣어도 바로 쓸 수 있게 앱이 직접 그려요 (300×400, 배경 투명)
-const POSE_SKIN = '#ffd6b5', POSE_HAIR = '#3b2a24', POSE_SHIRT = '#8fb8ee', POSE_LINE = '#5b3d33';
-function poseFace(x, o = {}){
-  x.fillStyle = POSE_SKIN; x.beginPath(); x.arc(150, 150, 66, 0, Math.PI * 2); x.fill();
-  x.fillStyle = POSE_HAIR; x.beginPath(); x.arc(150, 146, 70, Math.PI * 1.02, Math.PI * 1.98); x.quadraticCurveTo(190, 112, 150, 108); x.quadraticCurveTo(110, 112, 80, 136); x.closePath(); x.fill();
-  x.fillStyle = 'rgba(255,120,140,.35)'; x.beginPath(); x.ellipse(110, 172, 13, 8, 0, 0, Math.PI * 2); x.fill(); x.beginPath(); x.ellipse(190, 172, 13, 8, 0, 0, Math.PI * 2); x.fill();
-  x.strokeStyle = POSE_LINE; x.fillStyle = POSE_LINE; x.lineWidth = 5; x.lineCap = 'round';
-  x.beginPath(); x.arc(126, 152, 6.5, 0, Math.PI * 2); x.fill();
-  if (o.wink) { x.beginPath(); x.moveTo(165, 153); x.quadraticCurveTo(174, 145, 183, 153); x.stroke(); }
-  else { x.beginPath(); x.arc(174, 152, 6.5, 0, Math.PI * 2); x.fill(); }
-  if (o.wow) { x.beginPath(); x.ellipse(150, 186, 9, 12, 0, 0, Math.PI * 2); x.fill(); }
-  else if (o.calm) { x.beginPath(); x.moveTo(138, 186); x.lineTo(162, 186); x.stroke(); }
-  else { x.beginPath(); x.arc(150, 176, 16, Math.PI * .15, Math.PI * .85); x.stroke(); }
-}
-function poseBody(x){ x.fillStyle = POSE_SHIRT; x.beginPath(); x.moveTo(40, 400); x.quadraticCurveTo(44, 248, 150, 236); x.quadraticCurveTo(256, 248, 260, 400); x.closePath(); x.fill();
-  x.fillStyle = POSE_SKIN; x.fillRect(132, 206, 36, 34); }
-function poseArm(x, pts){ x.lineCap = 'round'; x.lineJoin = 'round';
-  [['#6c97d2', 40], [POSE_SHIRT, 33]].forEach(([c, w]) => { x.strokeStyle = c; x.lineWidth = w;
-    x.beginPath(); x.moveTo(pts[0][0], pts[0][1]); if (pts.length === 3) x.quadraticCurveTo(pts[1][0], pts[1][1], pts[2][0], pts[2][1]); else pts.slice(1).forEach(p => x.lineTo(p[0], p[1])); x.stroke(); }); }
-function poseFinger(x, ax, ay, len, ang, w = 15){ x.strokeStyle = POSE_SKIN; x.lineWidth = w; x.lineCap = 'round'; x.beginPath(); x.moveTo(ax, ay); x.lineTo(ax + Math.cos(ang) * len, ay + Math.sin(ang) * len); x.stroke(); }
-function poseHand(x, hx, hy, kind = 'fist', s = 1){
-  const up = -Math.PI / 2;
-  if (kind === 'v') { poseFinger(x, hx - 6, hy - 8, 46, up - .3); poseFinger(x, hx + 6, hy - 8, 46, up + .3); }
-  if (kind === 'open') [-.5, -.17, .17, .5].forEach(a => poseFinger(x, hx, hy - 4, 36, up + a, 12));
-  if (kind === 'thumb') {   // 주먹(옆으로 넓게) + 위쪽 끝에 짧고 굵은 엄지, 손가락 주름 3줄
-    const d = s < 0 ? -1 : 1;
-    poseFinger(x, hx - 10 * d, hy - 14, 26, up - .12 * d, 22);
-    x.fillStyle = POSE_SKIN; x.beginPath(); x.roundRect(hx - 26, hy - 20, 52, 44, 16); x.fill();
-    x.strokeStyle = 'rgba(91,61,51,.35)'; x.lineWidth = 2.5; x.stroke();
-    for (let i = 0; i < 3; i++) { x.beginPath(); x.moveTo(hx + 4 * d, hy - 8 + i * 11); x.lineTo(hx + 24 * d, hy - 8 + i * 11); x.stroke(); }
-    return;
-  }
-  x.fillStyle = POSE_SKIN; x.beginPath(); x.arc(hx, hy, 23, 0, Math.PI * 2); x.fill();
-  x.strokeStyle = 'rgba(91,61,51,.25)'; x.lineWidth = 2.5; x.stroke();
-}
-function poseHeart(x, cx, cy, r, color = '#ff4f7f'){ x.fillStyle = color; x.beginPath(); x.moveTo(cx, cy + r * .9);
-  x.bezierCurveTo(cx - r * 1.6, cy - r * .2, cx - r * .7, cy - r * 1.3, cx, cy - r * .45); x.bezierCurveTo(cx + r * .7, cy - r * 1.3, cx + r * 1.6, cy - r * .2, cx, cy + r * .9); x.fill(); }
-const POSE_BUILTIN = [
-  ['v', '브이! ✌️', x => { poseBody(x); poseFace(x); poseArm(x, [[218, 262], [262, 250], [226, 186]]); poseHand(x, 226, 186, 'v'); }],
-  ['wink', '윙크하며 브이 😉', x => { poseBody(x); poseFace(x, {wink:true}); poseArm(x, [[82, 262], [40, 230], [72, 162]]); poseHand(x, 72, 162, 'v'); }],
-  ['cheek', '볼 하트 💞', x => { poseBody(x); poseFace(x); poseArm(x, [[82, 262], [52, 250], [92, 190]]); poseArm(x, [[218, 262], [248, 250], [208, 190]]); poseHand(x, 92, 186, 'open'); poseHand(x, 208, 186, 'open'); poseHeart(x, 150, 58, 22); }],
-  ['finger', '손가락 하트 💗', x => { poseBody(x); poseFace(x); poseArm(x, [[218, 262], [266, 268], [228, 214]]); poseHand(x, 228, 214); poseHeart(x, 238, 156, 20); }],
-  ['big', '머리 위로 큰 하트 💗', x => { poseBody(x); poseArm(x, [[82, 262], [10, 120], [138, 52]]); poseArm(x, [[218, 262], [290, 120], [162, 52]]); poseFace(x); poseHand(x, 140, 56); poseHand(x, 160, 56); }],
-  ['thumbs', '최고! 엄지 척 👍', x => { poseBody(x); poseFace(x); poseArm(x, [[82, 262], [20, 290], [44, 222]]); poseArm(x, [[218, 262], [280, 290], [256, 222]]); poseHand(x, 44, 226, 'thumb', -1); poseHand(x, 256, 226, 'thumb', 1); }],
-  ['pray', '기도하는 손 🙏', x => { poseBody(x); poseFace(x, {calm:true}); poseArm(x, [[82, 262], [96, 330], [140, 300]]); poseArm(x, [[218, 262], [204, 330], [160, 300]]);
-    x.fillStyle = POSE_SKIN; x.beginPath(); x.roundRect(134, 236, 32, 74, 16); x.fill(); x.strokeStyle = 'rgba(91,61,51,.3)'; x.lineWidth = 2.5; x.beginPath(); x.moveTo(150, 242); x.lineTo(150, 304); x.stroke(); }],
-  ['flower', '턱받침 꽃받침 🌸', x => { poseBody(x); poseArm(x, [[82, 262], [80, 300], [118, 226]]); poseArm(x, [[218, 262], [220, 300], [182, 226]]); poseFace(x);
-    x.fillStyle = POSE_SKIN; [[112, 222, -.5], [188, 222, .5]].forEach(([hx, hy, r]) => { x.save(); x.translate(hx, hy); x.rotate(r); x.beginPath(); x.ellipse(0, 0, 18, 34, 0, 0, Math.PI * 2); x.fill(); x.restore(); }); }],
-  ['hallelujah', '다 같이 할렐루야 🙌', x => { poseBody(x); poseArm(x, [[82, 262], [50, 160], [60, 60]]); poseArm(x, [[218, 262], [250, 160], [240, 60]]); poseFace(x); poseHand(x, 60, 58, 'open'); poseHand(x, 240, 58, 'open'); }],
-  ['wow', '깜짝 놀란 표정 😮', x => { poseBody(x); poseFace(x, {wow:true}); poseArm(x, [[82, 262], [46, 240], [86, 170]]); poseArm(x, [[218, 262], [254, 240], [214, 170]]); poseHand(x, 86, 168, 'open'); poseHand(x, 214, 168, 'open'); }],
-];
-const poseCanvasCache = {};
-function poseCanvas(key){
-  if (poseCanvasCache[key]) return poseCanvasCache[key];
-  const p = POSE_BUILTIN.find(q => q[0] === key); if (!p) return null;
-  const c = document.createElement('canvas'); c.width = 300; c.height = 400; p[2](c.getContext('2d'));
-  return poseCanvasCache[key] = c;
-}
 // 포즈 그림: 'corner'는 왼쪽 위 작은 카드, 'over'는 카메라 화면 위에 반투명하게
 function drawPose(x, r, img, mode, alpha){
   const [iw, ih] = dims(img);
@@ -1951,7 +1892,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-28 d';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-28 e';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -2123,13 +2064,6 @@ SC.admin = {
         rw.appendChild(btn('지우기', () => { S.poses = S.poses.filter(z => z !== q); save(); this.render(); }, 'btn danger'));
         card.appendChild(rw); pg.appendChild(card);
       });
-      const bg_ = el('div', {class:'pose-list'});
-      POSE_BUILTIN.forEach(([k, label]) => {
-        const off = S.poseOffB.includes(k), card = el('div', {class:'pose-card' + (off ? ' off' : '')});
-        card.appendChild(el('img', {src:poseCanvas(k).toDataURL(), alt:label})); card.appendChild(el('span', {class:'small'}, esc(label)));
-        card.appendChild(btn(off ? '켜기' : '끄기', () => { S.poseOffB = off ? S.poseOffB.filter(z => z !== k) : [...S.poseOffB, k]; save(); this.render(); }));
-        bg_.appendChild(card);
-      });
       const pm = el('div', {class:'minis'});
       [['corner', '왼쪽 위 작은 사진'], ['over', '화면 위에 반투명']].forEach(([k, n]) => pm.appendChild(el('button', {'aria-pressed':String(S.poseMode === k), onclick:() => { S.poseMode = k; save(); this.render(); }}, n)));
       const pr_ = el('div', {class:'row'});
@@ -2138,11 +2072,9 @@ SC.admin = {
         save(); toast('포즈를 넣었어요'); this.render(); }, true));
       p.appendChild(grp('포즈 따라하기',
         tog('촬영할 때 포즈 보여 주기', () => S.poseOn, v => S.poseOn = v),
-        '<span class="small">컷마다 다른 포즈가 촬영 화면에 보여요. 완성 사진에는 들어가지 않아요. 기본 포즈가 들어 있고, 연예인이나 캐릭터 포즈 사진을 더 넣을 수도 있어요. 반투명으로 쓸 때는 배경이 투명한 PNG(사람 모양만 있는 그림)가 가장 잘 보여요.</span>',
-        tog('기본 포즈 그림 쓰기', () => S.poseBuiltin, v => { S.poseBuiltin = v; this.render(); }),
-        S.poseBuiltin ? bg_ : null,
+        '<span class="small">연예인이나 캐릭터 포즈 사진을 넣어 두면, 컷마다 다른 포즈가 촬영 화면에 보여요. 완성 사진에는 들어가지 않아요. 반투명으로 쓸 때는 배경이 투명한 PNG(사람 모양만 있는 그림)가 가장 잘 보여요.</span>',
         pm, S.poseMode === 'over' ? rng('반투명 진하기', () => S.poseAlpha, v => S.poseAlpha = v, 10, 90, 5, v => v + '%') : null,
-        pr_, S.poses.length ? pg : '<span class="small">직접 넣은 포즈 사진은 아직 없어요.</span>'));
+        pr_, S.poses.length ? pg : '<span class="small">아직 넣은 포즈가 없어요.</span>'));
       const fl = el('div', {class:'minis'});
       Object.entries(PRESETS).forEach(([k, pr]) => fl.appendChild(el('button', {'aria-pressed':String(S.filters.includes(k)), onclick:() => { if (S.filters.includes(k)) { if (S.filters.length > 1) S.filters = S.filters.filter(x => x !== k); } else S.filters = Object.keys(PRESETS).filter(x => x === k || S.filters.includes(x)); save(); this.render(); }}, pr.name)));
       const df = el('select', {class:'f', 'aria-label':'처음 골라져 있는 필터'}); enabledFilters().forEach(k => { const o = el('option', {value:k}, PRESETS[k].name); if (k === S.defaultFilter) o.selected = true; df.appendChild(o); });
