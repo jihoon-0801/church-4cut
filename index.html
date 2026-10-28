@@ -130,6 +130,11 @@ button{cursor:pointer}
 .pill{position:absolute;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.12);color:#fff;border-radius:99px;padding:10px 26px;white-space:nowrap;backdrop-filter:blur(6px)}
 #shotCounter{top:calc(18px + env(safe-area-inset-top,0px));font-family:var(--f-en);font-weight:600;font-size:24px;letter-spacing:.06em}
 #phrase{top:64%;font-size:24px;font-weight:700;background:rgba(0,0,0,.55)}
+.pose-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:10px}
+.pose-card{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--line,#ddd);border-radius:12px;background:#fff}
+.pose-card img{width:100%;aspect-ratio:3/4;object-fit:contain;background:#f3f2f5;border-radius:8px}
+.pose-card.off img{opacity:.35}
+.pose-card .row{gap:6px}
 #countNum{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-family:var(--f-en);font-weight:600;font-size:min(34vw,32vh);color:#fff;text-shadow:0 8px 40px rgba(0,0,0,.45);line-height:1}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
 #flash.go{animation:flash .5s ease-out}
@@ -566,6 +571,7 @@ const DEFAULT_SETTINGS = {
   print:{ paperW:100, paperH:148, cut:true, offX:0, offY:0, maxCopies:4 },
   qr:{ cloud:'', preset:'', base:'' },
   sync:{ code:'', ver:0, hash:'', at:0 },
+  poses:[], poseOn:true, poseMode:'corner', poseAlpha:40,
 };
 function frameStrip(name, mode, bg, shape, ink, title){
   return { id:uid(), name, mode, enabled:true, Wmm:50, Hmm:148, bg, bgImg:null, overlay:null,
@@ -1477,23 +1483,28 @@ $('#toShoot').addEventListener('click', () => go('shoot'));
 SC.shoot = {
   token:0, skip:null,
   enter(){ this.run(++this.token); },
-  leave(){ this.token++; Clip.stop(); $('#countNum').textContent = ''; },
+  leave(){ this.token++; this.pose = null; Clip.stop(); $('#countNum').textContent = ''; },
   tick(){
     if (!sess) return;
     const cv = $('#shootCanvas'); sizeCanvas(cv, 1.5); const x = cv.getContext('2d');
     x.fillStyle = '#0e0d10'; x.fillRect(0, 0, cv.width, cv.height);
     const fr = sess.frame, a = slotAspect(fr), r = fitRect(cv.width, cv.height, a, 0.05);
     if (drawLive(x, r, fr.slots[0].shape, a, PRESETS[sess.filter], sess.mode, fr.slots[0].mask)) Clip.draw(gl ? glc : c2d);
+    if (this.pose) drawPose(x, r, this.pose, S.poseMode, S.poseAlpha);
   },
   wait(ms){ return new Promise(res => { const t = setTimeout(res, ms); this.skip = () => { clearTimeout(t); res('skip'); }; }); },
   async run(tk){
     const fr = sess.frame, n = fr.slots.length, total = n + S.extraShots, a = slotAspect(fr);
     const phrases = S.phrases.split('\n').map(s => s.trim()).filter(Boolean);
-    sess.shots = [];
+    sess.shots = []; this.pose = null;
+    // 포즈 가이드: 켜져 있으면 컷마다 다른 포즈를 섞어서 보여 줘요 (완성 사진에는 안 들어가요)
+    const poses = S.poseOn ? S.poses.filter(q => q.on !== false && (!q.mode || q.mode === sess.mode)).sort(() => Math.random() - .5) : [];
+    const poseImgs = (await Promise.all(poses.map(q => loadImage(q.img).catch(() => null)))).filter(Boolean);
     await Cam.start(sess.mode); if (tk !== this.token) return;
     for (let k = 0; k < total; k++) {
       $('#shotCounter').textContent = `${k} / ${total}`;
-      const ph = $('#phrase'); if (phrases.length) { ph.hidden = false; ph.textContent = phrases[Math.floor(Math.random()*phrases.length)]; } else ph.hidden = true;
+      this.pose = poseImgs.length ? poseImgs[k % poseImgs.length] : null;
+      const ph = $('#phrase'); if (this.pose) { ph.hidden = false; ph.textContent = '포즈를 따라 해 보세요!'; } else if (phrases.length) { ph.hidden = false; ph.textContent = phrases[Math.floor(Math.random()*phrases.length)]; } else ph.hidden = true;
       let skipped = false;
       for (let t = S.shotTimer; t > 0; t--) {
         if (tk !== this.token) return;
@@ -1502,7 +1513,7 @@ SC.shoot = {
         if (await this.wait(1000) === 'skip') { skipped = true; break; }
       }
       if (tk !== this.token) return;
-      $('#countNum').textContent = '';
+      $('#countNum').textContent = ''; this.pose = null;
       const raw = captureRaw(a, sess.mode);
       shutterSound(); const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
       const clip = await Clip.stop();
@@ -1514,6 +1525,23 @@ SC.shoot = {
     go(sess.shots.length > n ? 'pick' : 'deco');
   },
 };
+// 포즈 그림: 'corner'는 왼쪽 위 작은 카드, 'over'는 카메라 화면 위에 반투명하게
+function drawPose(x, r, img, mode, alpha){
+  const [iw, ih] = dims(img);
+  x.save();
+  if (mode === 'over') {
+    const k = Math.min(r.w / iw, r.h / ih), w = iw * k, h = ih * k;
+    x.globalAlpha = Math.max(.1, Math.min(.9, (alpha || 40) / 100));
+    x.drawImage(img, r.x + (r.w - w) / 2, r.y + (r.h - h) / 2, w, h);
+  } else {
+    const bh = r.h * .34, k = Math.min(bh / ih, r.w * .34 / iw), w = iw * k, h = ih * k, pad = Math.max(8, r.h * .015);
+    const bx = r.x + pad * 1.5, by = r.y + pad * 1.5;
+    x.fillStyle = 'rgba(255,255,255,.92)'; x.shadowColor = 'rgba(0,0,0,.35)'; x.shadowBlur = 16;
+    x.beginPath(); x.roundRect(bx, by, w + pad * 2, h + pad * 2, pad * 1.4); x.fill(); x.shadowBlur = 0;
+    x.drawImage(img, bx + pad, by + pad, w, h);
+  }
+  x.restore();
+}
 $('#shootNow').addEventListener('click', () => { if (SC.shoot.skip) SC.shoot.skip(); });
 document.addEventListener('keydown', e => { if (cur === 'shoot' && (e.code === 'Space' || e.key === 'Enter')) { e.preventDefault(); if (SC.shoot.skip) SC.shoot.skip(); } });
 $('#shootQuit').addEventListener('click', () => go('home'));
@@ -1853,7 +1881,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-25 b';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-28 a';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
@@ -2013,6 +2041,29 @@ SC.admin = {
         num('칸 수보다 더 찍을 장수 (찍고 나서 고르기)', () => S.extraShots, v => S.extraShots = v, 0, 6),
         tog('움직이는 네컷 영상 만들기 (QR로 받기)', () => S.video, v => S.video = v),
         REC_MIME ? null : '<span class="small">이 브라우저는 영상 녹화를 지원하지 않아요.</span>'));
+      const pg = el('div', {class:'pose-list'});
+      S.poses.forEach(q => {
+        const card = el('div', {class:'pose-card' + (q.on === false ? ' off' : '')});
+        card.appendChild(el('img', {src:q.img, alt:'포즈'}));
+        const ms = el('select', {'aria-label':'이 포즈를 보여 줄 촬영'}); [['', '정면·탑뷰'], ['front', '정면만'], ['top', '탑뷰만']].forEach(([v, n]) => { const o = el('option', {value:v}, n); if ((q.mode || '') === v) o.selected = true; ms.appendChild(o); });
+        ms.addEventListener('change', () => { q.mode = ms.value; save(); });
+        card.appendChild(ms);
+        const rw = el('div', {class:'row'});
+        rw.appendChild(btn(q.on === false ? '켜기' : '끄기', () => { q.on = q.on === false; save(); this.render(); }));
+        rw.appendChild(btn('지우기', () => { S.poses = S.poses.filter(z => z !== q); save(); this.render(); }, 'btn danger'));
+        card.appendChild(rw); pg.appendChild(card);
+      });
+      const pm = el('div', {class:'minis'});
+      [['corner', '왼쪽 위 작은 사진'], ['over', '화면 위에 반투명']].forEach(([k, n]) => pm.appendChild(el('button', {'aria-pressed':String(S.poseMode === k), onclick:() => { S.poseMode = k; save(); this.render(); }}, n)));
+      const pr_ = el('div', {class:'row'});
+      pr_.appendChild(filePick('포즈 사진 넣기 (여러 장 가능)', 'image/*', async fs => {
+        for (const f of fs) { try { const im = await fileToImage(f); S.poses.push({id:uid(), img:scaledDataURL(im, 900, /png|webp|gif/.test(f.type) ? 'image/png' : 'image/jpeg', .88), on:true, mode:''}); } catch(e) {} }
+        save(); toast('포즈를 넣었어요'); this.render(); }, true));
+      p.appendChild(grp('포즈 따라하기',
+        tog('촬영할 때 포즈 보여 주기', () => S.poseOn, v => S.poseOn = v),
+        '<span class="small">연예인이나 캐릭터 포즈 사진을 넣어 두면, 컷마다 다른 포즈가 촬영 화면에 보여요. 완성 사진에는 들어가지 않아요. 반투명으로 쓸 때는 배경이 투명한 PNG(사람 모양만 있는 그림)가 가장 잘 보여요.</span>',
+        pm, S.poseMode === 'over' ? rng('반투명 진하기', () => S.poseAlpha, v => S.poseAlpha = v, 10, 90, 5, v => v + '%') : null,
+        pr_, S.poses.length ? pg : '<span class="small">아직 넣은 포즈가 없어요.</span>'));
       const fl = el('div', {class:'minis'});
       Object.entries(PRESETS).forEach(([k, pr]) => fl.appendChild(el('button', {'aria-pressed':String(S.filters.includes(k)), onclick:() => { if (S.filters.includes(k)) { if (S.filters.length > 1) S.filters = S.filters.filter(x => x !== k); } else S.filters = Object.keys(PRESETS).filter(x => x === k || S.filters.includes(x)); save(); this.render(); }}, pr.name)));
       const df = el('select', {class:'f', 'aria-label':'처음 골라져 있는 필터'}); enabledFilters().forEach(k => { const o = el('option', {value:k}, PRESETS[k].name); if (k === S.defaultFilter) o.selected = true; df.appendChild(o); });
