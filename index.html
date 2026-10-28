@@ -562,7 +562,7 @@ const PRESETS = {
   bw:     {name:'흑백',     smooth:.65, bright:.24, warm:0,    glow:.2,  contrast:.28,  sat:0,    pink:0,   fade:0,   bw:1},
   film:   {name:'필름',     smooth:.45, bright:.12, warm:.3,   glow:.12, contrast:-.06, sat:-.18, pink:0,   fade:.6,  bw:0},
 };
-const PHRASES = ['브이! ✌️','윙크 한 방 날리기 😉','볼 하트 만들기 🫶','다 같이 할렐루야 🙌','깜짝 놀란 표정 😮','옆 사람 볼 콕 👉','최고! 엄지 척 👍','기도하는 손 🙏','턱받침 귀엽게 🥰','머리 위로 큰 하트 💗','세상 진지한 표정 😐','마지막은 활짝 웃기 😁'];
+const PHRASES = ['브이! ✌️','윙크 한 방 날리기 😉','볼 하트 만들기 💞','다 같이 할렐루야 🙌','깜짝 놀란 표정 😮','옆 사람 볼 콕 👉','최고! 엄지 척 👍','기도하는 손 🙏','턱받침 귀엽게 🥰','머리 위로 큰 하트 💗','세상 진지한 표정 😐','마지막은 활짝 웃기 😁'];
 const DEFAULT_SETTINGS = {
   pin:'0000', homeTitle:'친구야! 어서와!', homeImg:null, logoImg:null, churchName:'우리 교회',
   shotTimer:6, extraShots:2, filterTimerOn:true, filterTimerSec:15, filters:Object.keys(PRESETS), defaultFilter:'insaeng',
@@ -619,6 +619,7 @@ const DB = { db:null,
 function merge(base, over){ if (!over || typeof over !== 'object' || Array.isArray(over)) return over ?? base; const o = {...base}; for (const k of Object.keys(over)) o[k] = (base && typeof base[k] === 'object' && base[k] && !Array.isArray(base[k])) ? merge(base[k], over[k]) : over[k]; return o; }
 await DB.open();
 let S = merge(clone(DEFAULT_SETTINGS), await DB.get('settings'));
+S.phrases = String(S.phrases || '').replace(/🫶/g, '💞');   // 윈도우 10에는 이 그림 글자가 없어 네모로 보여요
 let FRAMES = (await DB.get('frames')) || defaultFrames();
 let USTK = (await DB.get('stickers')) || [];
 let saveT;
@@ -1881,7 +1882,7 @@ function buildSheet(frameCv, fr){
 }
 /* 태블릿 앱(BoothApp) 안에서 열렸을 때: 프린터로 바로 인쇄, 기기에 저장 */
 const APP = window.BoothApp || null;
-const APP_VER = '10-28 a';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
+const APP_VER = '10-28 b';   // 고칠 때마다 바꿔서 태블릿이 새 화면인지 확인해요
 const APK_URL = 'https://github.com/jihoon-0801/church-4cut/releases/download/app/church-4cut.apk';
 const boothCbs = {};
 window.__boothCb = (id, r) => { const f = boothCbs[id]; delete boothCbs[id]; if (f) f(r); };
